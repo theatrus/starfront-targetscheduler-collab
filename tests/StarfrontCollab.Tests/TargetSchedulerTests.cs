@@ -67,6 +67,32 @@ public sealed class TargetSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void CheckInsAllNightForSeveralNightsReuseTheSameRows()
+    {
+        // Twenty 5-minute check-ins a night for three nights, with frames arriving between them.
+        string[] nights = ["2026-10-05", "2026-10-06", "2026-10-07"];
+        for (var night = 0; night < nights.Length; night++)
+        {
+            for (var checkIn = 0; checkIn < 20; checkIn++)
+            {
+                var result = Store.Activate(Request(Tonight(nights[night]), Evening.AddDays(night).AddMinutes(5 * checkIn)), commit: true);
+                if (checkIn > 0) Assert.Empty(result.Changes);
+                database.Exec("UPDATE exposureplan SET acquired = acquired + 1, accepted = accepted + 1");
+            }
+        }
+
+        Assert.Equal(1, database.Count("SELECT COUNT(*) FROM project"));
+        Assert.Equal(8, database.Count("SELECT COUNT(*) FROM ruleweight"));
+        Assert.Equal(6, database.Count("SELECT COUNT(*) FROM target"));
+        Assert.Equal(1, database.Count("SELECT COUNT(*) FROM exposuretemplate"));
+        Assert.Equal(6, database.Count("SELECT COUNT(*) FROM exposureplan"));
+        // One goal record per plan per night.
+        Assert.Equal(18, database.Count("SELECT COUNT(*) FROM starfront_collab_plan"));
+        // The last night's goal: 40 frames from the first two nights, plus tonight's 11.
+        Assert.Equal(6, database.Count("SELECT COUNT(*) FROM exposureplan WHERE desired = 51"));
+    }
+
+    [Fact]
     public void AnExistingTemplateOnTheWheelIsReused()
     {
         database.AddTemplate("OIII 3nm", 300);

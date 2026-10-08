@@ -64,7 +64,7 @@ with no position. Hello mode never opens the Target Scheduler database.
 Each check-in also:
 
 1. Fetches tonight's assignments.
-2. Writes them to Target Scheduler:
+2. Brings Target Scheduler in step with them. It keeps:
    - one project per collaboration, with its minimum altitude
    - one target per assigned panel
    - one exposure plan per panel and filter
@@ -72,6 +72,20 @@ Each check-in also:
 
 Review the changes under **Activity**, then click **Apply**. Turn on
 **Apply automatically** to skip the review.
+
+### Once per night
+
+The server deals a telescope's panels once per night and keeps that deal
+until the next night. The plugin follows it the same way Starfront does:
+
+- Every check-in reuses the same project, targets and plans. If the deal has
+  not changed, the check-in changes nothing.
+- On the first check-in of a night, each plan's goal becomes the frames taken
+  so far plus tonight's frames. The goal then holds for the rest of the night.
+- New rows appear only for a new collaboration, panel or filter, or when a
+  panel's cell moves after frames were taken.
+
+A night runs from local noon to local noon at the profile's site.
 
 ### Filters and templates
 

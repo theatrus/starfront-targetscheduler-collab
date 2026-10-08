@@ -1,0 +1,20 @@
+{
+  "Name": "Starfront TargetScheduler Collab",
+  "Identifier": "6687bd68-7bea-4d5e-b8c4-91f79cad8d37",
+  "Version": { "Major": 0, "Minor": 1, "Patch": 0, "Build": 0 },
+  "Author": "Yann Ramin (@theatrus)",
+  "Homepage": "https://github.com/theatrus/starfront-targetscheduler-collab",
+  "Repository": "https://github.com/theatrus/starfront-targetscheduler-collab",
+  "License": "Apache-2.0",
+  "LicenseURL": "https://github.com/theatrus/starfront-targetscheduler-collab/blob/main/LICENSE",
+  "ChangelogURL": "https://github.com/theatrus/starfront-targetscheduler-collab/releases",
+  "Tags": ["starfront", "astrocollab", "collaboration", "target-scheduler"],
+  "MinimumApplicationVersion": { "Major": 3, "Minor": 2, "Patch": 0, "Build": 9001 },
+  "Descriptions": {
+    "ShortDescription": "Reports where the telescope points to a Starfront collaboration server, and keeps Target Scheduler in step with its assignments.",
+    "LongDescription": "Built for the Starfront app and its collaboration server, N.I.N.A. and Target Scheduler, following the AstroCollab API spec (astrocollabapi.com). Hello mode reports the mount position and rig state every 5 minutes and after each slew. Collab mode also writes tonight's assigned panels into Target Scheduler as projects, targets and exposure plans, then reports the frames Target Scheduler accepted. Sign in with Discord or paste a telescope token.",
+    "FeaturedImageURL": "https://raw.githubusercontent.com/theatrus/starfront-targetscheduler-collab/main/assets/starfront-targetscheduler-collab.png",
+    "ScreenshotURL": "https://raw.githubusercontent.com/theatrus/starfront-targetscheduler-collab/main/docs/images/plugin-page.png",
+    "AltScreenshotURL": ""
+  }
+}

@@ -1,0 +1,217 @@
+<ResourceDictionary x:Class="StarfrontCollab.Plugin.Options"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary">
+    <!-- Styles and brushes are N.I.N.A.'s own, looked up dynamically so the page
+         follows the active colour schema. Settings sit on the left and activity
+         on the right; the page scrolls itself if N.I.N.A. gives it a fixed height. -->
+    <DataTemplate x:Key="Starfront TargetScheduler Collab_Options">
+        <ScrollViewer DataContext="{Binding Controller}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid MaxWidth="1400" HorizontalAlignment="Left" Margin="0,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="420" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" MinWidth="360" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.ColumnSpan="3" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Margin="0,0,0,8" TextWrapping="Wrap"
+                    Text="Hello mode reports where the mount points and what the rig is doing. Collab mode also pulls tonight's assigned panels into Target Scheduler and reports the frames it accepts." />
+
+                <!-- Settings -->
+                <StackPanel Grid.Row="1" Grid.Column="0">
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Connection" Margin="0,0,0,8">
+                        <StackPanel Margin="4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Mode" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" Style="{DynamicResource StandardComboBox}" Margin="0,2" ItemsSource="{Binding Modes}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding Mode}" />
+                                <TextBlock Grid.Row="1" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Server" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{DynamicResource StandardTextbox}" Margin="0,2" Text="{Binding ServerUrl, UpdateSourceTrigger=LostFocus}" />
+                                <TextBlock Grid.Row="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Telescope name" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{DynamicResource StandardTextbox}" Margin="0,2" MaxLength="60" Text="{Binding TelescopeName, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding TelescopeNameHint}" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="0,0,0,2" TextWrapping="Wrap" Text="{Binding TelescopeNameHint}" />
+                                <TextBlock Grid.Row="4" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Telescope token" />
+                                <Grid Grid.Row="4" Grid.Column="1" Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Style="{DynamicResource StandardTextbox}" Margin="0,0,6,0" Text="{Binding AgentTokenInput, UpdateSourceTrigger=PropertyChanged}" ToolTip="Paste a token from the server's owner instead of signing in" />
+                                    <Button Grid.Column="1" Style="{DynamicResource StandardButton}" MinWidth="100" Height="25" Command="{Binding SaveTokenCommand}">
+                                        <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Save token" />
+                                    </Button>
+                                </Grid>
+                                <TextBlock Grid.Row="5" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Plain HTTP to this PC" />
+                                <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,2">
+                                    <CheckBox Style="{DynamicResource StandardCheckBox}" IsChecked="{Binding AllowLoopbackHttp}" />
+                                    <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="testing only" />
+                                </StackPanel>
+                            </Grid>
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="120" Height="25" Command="{Binding SignInCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Sign in with Discord" />
+                                </Button>
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding CancelSignInCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Cancel sign-in" />
+                                </Button>
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding ForgetCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Forget token" />
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Check-in" Margin="0,0,0,8">
+                        <Grid Margin="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Check in every" />
+                            <ninactrl:UnitTextBox Grid.Column="1" Margin="0,2" Unit="min" Text="{Binding CheckInMinutes, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Column="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="and soon after every slew" />
+                            <TextBlock Grid.Row="1" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Share mount position" />
+                            <CheckBox Grid.Row="1" Grid.Column="1" Style="{DynamicResource StandardCheckBox}" Margin="0,2" HorizontalAlignment="Left" IsChecked="{Binding SharePosition}" />
+                            <TextBlock Grid.Row="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Share target name" />
+                            <CheckBox Grid.Row="2" Grid.Column="1" Style="{DynamicResource StandardCheckBox}" Margin="0,2" HorizontalAlignment="Left" IsChecked="{Binding ShareTarget}" />
+                        </Grid>
+                    </GroupBox>
+
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Target Scheduler" Margin="0,0,0,8">
+                        <Grid Margin="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Database" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Style="{DynamicResource StandardTextbox}" Margin="0,2" Text="{Binding DatabasePath, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="1" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Binning" />
+                            <ninactrl:UnitTextBox Grid.Row="1" Grid.Column="1" Margin="0,2" Unit="x" Text="{Binding Binning, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Hours per night" />
+                            <ninactrl:UnitTextBox Grid.Row="2" Grid.Column="1" Margin="0,2" Unit="h" Text="{Binding HoursPerNight, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="0 = while the target is up" />
+                            <TextBlock Grid.Row="3" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Camera angle" />
+                            <ninactrl:UnitTextBox Grid.Row="3" Grid.Column="1" Margin="0,2" Unit="°" Text="{Binding CameraAngle, UpdateSourceTrigger=LostFocus}" />
+                            <TextBlock Grid.Row="3" Grid.Column="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="without a rotator" />
+                            <TextBlock Grid.Row="4" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Apply automatically" />
+                            <CheckBox Grid.Row="4" Grid.Column="1" Style="{DynamicResource StandardCheckBox}" Margin="0,2" HorizontalAlignment="Left" IsChecked="{Binding AutoApply}" />
+                            <TextBlock Grid.Row="4" Grid.Column="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="off: review, then press Apply" />
+                        </Grid>
+                    </GroupBox>
+                </StackPanel>
+
+                <!-- Activity -->
+                <StackPanel Grid.Row="1" Grid.Column="2">
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Activity" Margin="0,0,0,8">
+                        <StackPanel Margin="4">
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap" Text="{Binding AccountStatus}" />
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding HelloStatus}" />
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding CollabStatus}" />
+                            <TextBox Style="{DynamicResource StandardTextbox}" Margin="0,4" IsReadOnly="True" TextWrapping="Wrap" MinHeight="48" MaxHeight="200" VerticalScrollBarVisibility="Auto" Text="{Binding PreviewText, Mode=OneWay}" />
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" TextWrapping="Wrap" Text="{Binding ReportStatus}" />
+                            <WrapPanel Margin="0,6,0,0">
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,0" MinWidth="100" Height="25" Command="{Binding SendHelloCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Check in now" />
+                                </Button>
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,0" MinWidth="100" Height="25" Command="{Binding PollCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Fetch tonight" />
+                                </Button>
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,0" MinWidth="100" Height="25" Command="{Binding ApplyCommand}">
+                                    <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Apply" />
+                                </Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </GroupBox>
+
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="This telescope's shares" Margin="0,0,0,8">
+                        <ItemsControl Margin="4" ItemsSource="{Binding Shares}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding Title}" />
+                                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" TextWrapping="Wrap" Text="{Binding Detail}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Offered}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Button Style="{DynamicResource StandardButton}" Margin="6,0,0,0" MinWidth="80" Height="25" Command="{Binding Accept}">
+                                                <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Accept" />
+                                            </Button>
+                                            <Button Style="{DynamicResource StandardButton}" Margin="6,0,0,0" MinWidth="80" Height="25" Command="{Binding Decline}">
+                                                <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Decline" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </GroupBox>
+
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Open collaborations">
+                        <ItemsControl Margin="4" ItemsSource="{Binding Projects}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding Title}" />
+                                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" TextWrapping="Wrap" Text="{Binding Detail}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Style="{DynamicResource StandardButton}" Margin="6,0,0,0" MinWidth="80" Height="25" VerticalAlignment="Top" Command="{Binding Join}" IsEnabled="{Binding CanJoin}">
+                                            <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Join" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </GroupBox>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </DataTemplate>
+</ResourceDictionary>

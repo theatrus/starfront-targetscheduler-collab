@@ -1,0 +1,37 @@
+name: Checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: dotnet restore --locked-mode
+      - run: dotnet format --verify-no-changes --no-restore
+      - run: dotnet build --configuration Release --no-restore
+      - run: dotnet test --configuration Release --no-build --logger "trx;LogFileName=collab.trx"
+      - name: Build plugin package
+        shell: pwsh
+        run: ./build-package.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starfront-targetscheduler-collab-package
+          path: |
+            artifacts/StarfrontTargetSchedulerCollab-*.zip
+            artifacts/StarfrontTargetSchedulerCollab-*.manifest.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results
+          path: '**/TestResults/*.trx'

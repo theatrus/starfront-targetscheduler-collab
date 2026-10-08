@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PlatformTarget>x64</PlatformTarget>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/StarfrontCollab.Core/StarfrontCollab.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../tests/StarfrontCollab.Tests/Fixtures/ts_schema/**/*" LinkBase="ts_schema" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

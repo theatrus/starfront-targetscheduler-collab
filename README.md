@@ -36,13 +36,15 @@ into `%LOCALAPPDATA%\NINA\Plugins\3.0.0\Starfront TargetScheduler Collab`.
 ## Connect
 
 1. Open **Plugins → Installed → Starfront TargetScheduler Collab**.
-2. Keep **Server** set to the Starfront server, or enter your own.
-3. Click **Sign in with Discord** and approve in the browser.
-   Or paste a telescope token and click **Save token**.
+2. Keep **Server** set to `https://collab.starfront.space`, or enter your own.
+3. Click **Sign in with Discord** and approve in the browser. This registers
+   the telescope and saves its token. You do not need the token field.
 4. Pick a **Mode**.
 
-The token is stored in Windows Credential Manager. Each N.I.N.A. profile is
-its own telescope.
+Paste a token and click **Save token** only if the server's owner gave you
+one. The token is stored in Windows Credential Manager. Once it is saved, the
+page says so and hides the sign-in controls. Each N.I.N.A. profile is its own
+telescope.
 
 ## Hello mode
 
@@ -58,6 +60,11 @@ sends:
 Turn off **Share mount position** or **Share target name** to keep them
 private. The site location is never sent. On exit, the plugin sends `offline`
 with no position. Hello mode never opens the Target Scheduler database.
+
+Collaborations and this telescope's shares are listed in Collab mode only. In
+Hello mode those lists say so.
+
+![The plugin page in Hello mode](docs/images/plugin-hello.png)
 
 ## Collab mode
 

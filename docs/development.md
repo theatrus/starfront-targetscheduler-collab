@@ -51,7 +51,7 @@ dotnet run --project tools/InteropCheck -c Release -- http://127.0.0.1:8800 "$en
 
 ```powershell
 ./build-package.ps1
-./tools/start-nina-smoke.ps1 -PluginZip artifacts/StarfrontTargetSchedulerCollab-0.1.0.0.zip
+./tools/start-nina-smoke.ps1 -PluginZip artifacts/StarfrontTargetSchedulerCollab-0.1.1.0.zip
 ```
 
 A test-only startup hook points N.I.N.A.'s data folder at
@@ -96,7 +96,15 @@ On 2026-10-07:
   - tonight's single-target test project became one target and five plans
   - Target Scheduler slewed and shot 2-second frames from those plans
   - every check-in reported the growing accepted count, and the server accepted it
-- The screenshots in `docs/images/` come from that run.
+On 2026-10-08, for 0.1.1.0:
 
-Not yet run: a night on real equipment, and the Discord browser sign-in
-against a live server. Telescope tokens and enrollment were tested.
+- 77 unit tests passed.
+- The packaged plugin ran against `https://collab.starfront.space` (Starfront
+  0.2.35) in an isolated N.I.N.A. in Collab and Hello mode. Hello mode left the
+  Target Scheduler database untouched.
+- Both hostnames serve the same server. Sign-in links always name
+  `collab.starfront.space`, which is why sign-in failed on the old address.
+- The screenshots in `docs/images/` come from these runs.
+
+Not yet run: a night on real equipment. The user confirmed the Discord
+sign-in registers a telescope and saves its token.

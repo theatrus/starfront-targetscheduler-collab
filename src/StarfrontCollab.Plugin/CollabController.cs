@@ -86,11 +86,37 @@ internal sealed class CollabController : INotifyPropertyChanged
             if (value == settings.Mode) return;
             settings.Mode = value;
             nextHello = nextPoll = DateTimeOffset.UtcNow;
-            if (value != CollabSettings.Collab) { pending = null; CollabStatus = "Collab mode is off."; }
-            Changed();
+            if (value != CollabSettings.Collab)
+            {
+                // Collab results from before would read as current; clear them.
+                pending = null;
+                CollabStatus = "Collab mode is off.";
+                PreviewText = "";
+                ReportStatus = "";
+            }
+            Changed(string.Empty);
             Wake();
         }
     }
+
+    public bool IsCollab => Mode == CollabSettings.Collab;
+    public bool IsNotCollab => !IsCollab;
+
+    /// Whether this telescope already has a token: signing in saved one, or one was pasted.
+    public bool HasToken => Account() is not null;
+    public bool NeedsToken => !HasToken;
+
+    public string TokenNote => HasToken
+        ? "This telescope is registered. Its token is saved in Windows Credential Manager, so there is nothing to paste."
+        : "Sign in with Discord registers this telescope and saves its token for you. Paste a token only if the server's owner gave you one.";
+
+    public string SharesHint => !IsCollab ? "Shown in Collab mode. Set Mode to Collab to see this telescope's shares."
+        : Shares.Count == 0 ? "No shares yet. Join a collaboration below, then click Fetch tonight." : "";
+    public bool ShowSharesHint => SharesHint.Length > 0;
+
+    public string ProjectsHint => !IsCollab ? "Shown in Collab mode. Set Mode to Collab to browse and join collaborations."
+        : Projects.Count == 0 ? "Not fetched yet. Click Fetch tonight, or wait for the next check-in." : "";
+    public bool ShowProjectsHint => ProjectsHint.Length > 0;
 
     public string ServerUrl
     {
@@ -171,8 +197,17 @@ internal sealed class CollabController : INotifyPropertyChanged
     public string CollabStatus { get => collabStatus; private set => Set(ref collabStatus, value); }
     public string PreviewText { get => previewText; private set => Set(ref previewText, value); }
     public string ReportStatus { get => reportStatus; private set => Set(ref reportStatus, value); }
-    public IReadOnlyList<ShareRow> Shares { get => shares; private set => Set(ref shares, value); }
-    public IReadOnlyList<ProjectRow> Projects { get => projects; private set => Set(ref projects, value); }
+    public IReadOnlyList<ShareRow> Shares
+    {
+        get => shares;
+        private set { Set(ref shares, value); Changed(nameof(SharesHint)); Changed(nameof(ShowSharesHint)); }
+    }
+
+    public IReadOnlyList<ProjectRow> Projects
+    {
+        get => projects;
+        private set { Set(ref projects, value); Changed(nameof(ProjectsHint)); Changed(nameof(ShowProjectsHint)); }
+    }
 
     public ICommand SignInCommand => signIn;
     public ICommand CancelSignInCommand => cancelSignIn;
@@ -600,6 +635,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         rejected = false;
         pending = null;
         AccountStatus = "Not signed in. The telescope stays registered on the server; signing in again registers a new one.";
+        TokenChanged();
         return Task.CompletedTask;
     }
 
@@ -608,16 +644,39 @@ internal sealed class CollabController : INotifyPropertyChanged
         if (Server() is not { } server) return null;
         if (credential is { } cached && cached.Server == server && cached.Profile == ProfileId) return cached.Value;
         Credential? value = null;
-        try { value = CredentialStore.Read(server, ProfileId); }
+        try { value = CredentialStore.Read(server, ProfileId) ?? MoveFromFormerAddress(server); }
         catch (Exception error) when (error is InvalidOperationException or Win32Exception) { AccountStatus = error.Message; }
         credential = (server, ProfileId, value);
         return value;
+    }
+
+    /// A token saved while Starfront's server had its earlier name is the same
+    /// telescope on the same server: file it under the current address.
+    private Credential? MoveFromFormerAddress(Uri server)
+    {
+        foreach (var former in KnownServers.FormerAddressesOf(server))
+        {
+            if (CredentialStore.Read(former, ProfileId) is not { } moved) continue;
+            CredentialStore.Store(server, ProfileId, moved);
+            CredentialStore.Forget(former, ProfileId);
+            Logger.Info($"Starfront TargetScheduler Collab moved telescope {moved.AgentId}'s token from {former.Host} to {server.Host}.");
+            return moved;
+        }
+        return null;
     }
 
     private void Remember(Uri server, Credential value)
     {
         CredentialStore.Store(server, ProfileId, value);
         credential = (server, ProfileId, value);
+        TokenChanged();
+    }
+
+    private void TokenChanged()
+    {
+        Changed(nameof(HasToken));
+        Changed(nameof(NeedsToken));
+        Changed(nameof(TokenNote));
     }
 
     private void Reject()

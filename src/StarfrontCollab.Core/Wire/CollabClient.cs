@@ -67,10 +67,12 @@ public sealed class CollabClient : IDisposable
         var code = root.Text("code", 512);
         var seconds = root.Number("expiresIn");
         if (code.Length == 0 || seconds is < 1 or > 3600) throw Malformed("The server's sign-in offer is not readable.");
-        // The browser link must stay on the server this telescope talks to.
-        if (!Uri.TryCreate(root.Text("url", 4096), UriKind.Absolute, out var url) || url.UserInfo.Length != 0 || url.Fragment.Length != 0
-            || url.Scheme != Server.Scheme || url.Host != Server.Host || url.Port != Server.Port)
-            throw Malformed("The server's sign-in link points somewhere else.");
+        if (!Uri.TryCreate(root.Text("url", 4096), UriKind.Absolute, out var url) || url.UserInfo.Length != 0 || url.Fragment.Length != 0)
+            throw Malformed("The server's sign-in link is not readable.");
+        // The browser link must stay on the server this telescope talks to. A
+        // server reached under another name sends links for its own name.
+        if (url.Scheme != Server.Scheme || url.Host != Server.Host || url.Port != Server.Port)
+            throw Malformed($"This server sends sign-in links for {url.Scheme}://{url.Authority}. Set Server to that address and sign in again.");
         return new(code, url, TimeSpan.FromSeconds(Math.Floor(seconds)));
     }
 

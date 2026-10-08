@@ -113,6 +113,33 @@ public sealed class ClientTests
             Reply("""{"code":"abc","url":"https://phish.example.org/auth/discord/start?code=abc","expiresIn":600}""")));
         var error = await Assert.ThrowsAsync<CollabException>(() => client.StartLoginAsync(CancellationToken.None));
         Assert.Equal(CollabFailure.Malformed, error.Failure);
+        // The message names the address the server uses, so a wrong Server setting is easy to fix.
+        Assert.Contains("https://phish.example.org", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SignInWorksOnStarfrontsAddress()
+    {
+        using var client = new CollabClient(new Uri(KnownServers.Starfront), new Handler((_, _) =>
+            Reply("""{"code":"abc","url":"https://collab.starfront.space/auth/discord/start?code=abc","expiresIn":600.0}""")));
+        var login = await client.StartLoginAsync(CancellationToken.None);
+        Assert.Equal(("abc", TimeSpan.FromMinutes(10)), (login.Code, login.Lifetime));
+    }
+
+    [Theory]
+    [InlineData("", "https://collab.starfront.space/")]
+    [InlineData("https://starfront-bray.duckdns.org", "https://collab.starfront.space/")]
+    [InlineData("https://Starfront-Bray.duckdns.org/", "https://collab.starfront.space/")]
+    [InlineData("https://collab.starfront.space", "https://collab.starfront.space")]
+    [InlineData("https://collab.example.org/", "https://collab.example.org/")]
+    public void FormerStarfrontAddressesMoveToTheCurrentOne(string configured, string expected) =>
+        Assert.Equal(expected, KnownServers.Canonical(configured));
+
+    [Fact]
+    public void TokensMayMoveOnlyBetweenStarfrontsOwnAddresses()
+    {
+        Assert.Equal(["https://starfront-bray.duckdns.org/"], KnownServers.FormerAddressesOf(new Uri(KnownServers.Starfront)).Select(u => u.AbsoluteUri));
+        Assert.Empty(KnownServers.FormerAddressesOf(new Uri("https://collab.example.org/")));
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 {
   "Name": "Starfront TargetScheduler Collab",
   "Identifier": "6687bd68-7bea-4d5e-b8c4-91f79cad8d37",
-  "Version": { "Major": 0, "Minor": 1, "Patch": 0, "Build": 0 },
+  "Version": { "Major": 0, "Minor": 1, "Patch": 1, "Build": 0 },
   "Author": "Yann Ramin (@theatrus)",
   "Homepage": "https://github.com/theatrus/starfront-targetscheduler-collab",
   "Repository": "https://github.com/theatrus/starfront-targetscheduler-collab",

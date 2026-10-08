@@ -7,6 +7,9 @@
          on the right; the page scrolls itself if N.I.N.A. gives it a fixed height. -->
     <DataTemplate x:Key="Starfront TargetScheduler Collab_Options">
         <ScrollViewer DataContext="{Binding Controller}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer.Resources>
+                <BooleanToVisibilityConverter x:Key="Visible" />
+            </ScrollViewer.Resources>
             <Grid MaxWidth="1400" HorizontalAlignment="Left" Margin="0,0,8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" MinWidth="420" />
@@ -45,13 +48,14 @@
                                 <TextBlock Grid.Row="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Telescope name" />
                                 <TextBox Grid.Row="2" Grid.Column="1" Style="{DynamicResource StandardTextbox}" Margin="0,2" MaxLength="60" Text="{Binding TelescopeName, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding TelescopeNameHint}" />
                                 <TextBlock Grid.Row="3" Grid.Column="1" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="0,0,0,2" TextWrapping="Wrap" Text="{Binding TelescopeNameHint}" />
-                                <TextBlock Grid.Row="4" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Telescope token" />
-                                <Grid Grid.Row="4" Grid.Column="1" Margin="0,2">
+                                <TextBlock Grid.Row="4" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Telescope token"
+                                    Visibility="{Binding NeedsToken, Converter={StaticResource Visible}}" />
+                                <Grid Grid.Row="4" Grid.Column="1" Margin="0,2" Visibility="{Binding NeedsToken, Converter={StaticResource Visible}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Style="{DynamicResource StandardTextbox}" Margin="0,0,6,0" Text="{Binding AgentTokenInput, UpdateSourceTrigger=PropertyChanged}" ToolTip="Paste a token from the server's owner instead of signing in" />
+                                    <TextBox Style="{DynamicResource StandardTextbox}" Margin="0,0,6,0" Text="{Binding AgentTokenInput, UpdateSourceTrigger=PropertyChanged}" ToolTip="Optional. Only for a token from the server's owner; signing in fills this for you." />
                                     <Button Grid.Column="1" Style="{DynamicResource StandardButton}" MinWidth="100" Height="25" Command="{Binding SaveTokenCommand}">
                                         <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Save token" />
                                     </Button>
@@ -63,16 +67,20 @@
                                 </StackPanel>
                             </Grid>
                             <WrapPanel Margin="0,6,0,0">
-                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="120" Height="25" Command="{Binding SignInCommand}">
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="120" Height="25" Command="{Binding SignInCommand}"
+                                    Visibility="{Binding NeedsToken, Converter={StaticResource Visible}}">
                                     <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Sign in with Discord" />
                                 </Button>
-                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding CancelSignInCommand}">
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding CancelSignInCommand}"
+                                    Visibility="{Binding NeedsToken, Converter={StaticResource Visible}}">
                                     <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Cancel sign-in" />
                                 </Button>
-                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding ForgetCommand}">
+                                <Button Style="{DynamicResource StandardButton}" Margin="0,0,6,6" MinWidth="100" Height="25" Command="{Binding ForgetCommand}"
+                                    Visibility="{Binding HasToken, Converter={StaticResource Visible}}">
                                     <TextBlock Foreground="{DynamicResource ButtonForegroundBrush}" Margin="8,0" Text="Forget token" />
                                 </Button>
                             </WrapPanel>
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" TextWrapping="Wrap" Text="{Binding TokenNote}" />
                         </StackPanel>
                     </GroupBox>
 
@@ -99,7 +107,11 @@
                     </GroupBox>
 
                     <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Target Scheduler" Margin="0,0,0,8">
-                        <Grid Margin="4">
+                        <StackPanel Margin="4">
+                        <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="0,0,0,4" TextWrapping="Wrap"
+                            Text="Used in Collab mode only. Hello mode never opens the Target Scheduler database."
+                            Visibility="{Binding IsNotCollab, Converter={StaticResource Visible}}" />
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="170" />
                                 <ColumnDefinition Width="110" />
@@ -126,6 +138,7 @@
                             <CheckBox Grid.Row="4" Grid.Column="1" Style="{DynamicResource StandardCheckBox}" Margin="0,2" HorizontalAlignment="Left" IsChecked="{Binding AutoApply}" />
                             <TextBlock Grid.Row="4" Grid.Column="2" Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" Margin="8,0,0,0" VerticalAlignment="Center" Text="off: review, then press Apply" />
                         </Grid>
+                        </StackPanel>
                     </GroupBox>
                 </StackPanel>
 
@@ -153,7 +166,10 @@
                     </GroupBox>
 
                     <GroupBox Style="{DynamicResource StandardGroupBox}" Header="This telescope's shares" Margin="0,0,0,8">
-                        <ItemsControl Margin="4" ItemsSource="{Binding Shares}">
+                        <StackPanel Margin="4">
+                        <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" TextWrapping="Wrap"
+                            Text="{Binding SharesHint}" Visibility="{Binding ShowSharesHint, Converter={StaticResource Visible}}" />
+                        <ItemsControl ItemsSource="{Binding Shares}" Visibility="{Binding IsCollab, Converter={StaticResource Visible}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,0,0,6">
@@ -187,10 +203,14 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
                     </GroupBox>
 
                     <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Open collaborations">
-                        <ItemsControl Margin="4" ItemsSource="{Binding Projects}">
+                        <StackPanel Margin="4">
+                        <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" Opacity="0.7" TextWrapping="Wrap"
+                            Text="{Binding ProjectsHint}" Visibility="{Binding ShowProjectsHint, Converter={StaticResource Visible}}" />
+                        <ItemsControl ItemsSource="{Binding Projects}" Visibility="{Binding IsCollab, Converter={StaticResource Visible}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Margin="0,0,0,6">
@@ -209,6 +229,7 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        </StackPanel>
                     </GroupBox>
                 </StackPanel>
             </Grid>

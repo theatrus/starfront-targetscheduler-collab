@@ -1,14 +1,13 @@
 using System.IO;
 using NINA.Core.Utility;
 using NINA.Profile.Interfaces;
+using StarfrontCollab.Wire;
 
 namespace StarfrontCollab.Plugin;
 
 /// Plugin settings, stored per N.I.N.A. profile. Never holds a token.
 internal sealed class CollabSettings(IPluginOptionsAccessor options)
 {
-    /// The collaboration server Starfront itself uses by default.
-    internal const string DefaultServer = "https://starfront-bray.duckdns.org";
 
     /// Where Target Scheduler keeps its database: under N.I.N.A.'s own data
     /// folder, which is %LOCALAPPDATA%\NINA unless N.I.N.A. was pointed elsewhere.
@@ -24,10 +23,12 @@ internal sealed class CollabSettings(IPluginOptionsAccessor options)
         set => options.SetValueString(nameof(Mode), value is Hello or Collab ? value : Off);
     }
 
+    /// Starfront's server unless set otherwise. A former Starfront address
+    /// reads as the current one.
     public string ServerUrl
     {
-        get => options.GetValueString(nameof(ServerUrl), DefaultServer);
-        set => options.SetValueString(nameof(ServerUrl), value.Trim());
+        get => KnownServers.Canonical(options.GetValueString(nameof(ServerUrl), KnownServers.Starfront));
+        set => options.SetValueString(nameof(ServerUrl), KnownServers.Canonical(value));
     }
 
     public bool AllowLoopbackHttp

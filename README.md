@@ -48,11 +48,13 @@ telescope.
 
 ## Hello mode
 
-The plugin checks in every 5 minutes and soon after each slew. Each check-in
+The plugin checks in when N.I.N.A. starts, every 5 minutes, and a few seconds
+after the mount connects, disconnects, parks, unparks or slews. Each check-in
 sends:
 
 - the mount position in J2000, with RA in hours
-- the state: `slewing`, `exposing`, `parked`, `tracking`, `idle` or `offline`
+- the state: `slewing`, `exposing`, `parked`, `tracking` or `idle` (`idle`
+  with no position when no mount is connected)
 - the target name, if the last saved frame is within 1° of the mount position
 - the telescope name and equipment: focal length, pixel size, sensor, binning
   and filters
@@ -60,6 +62,11 @@ sends:
 Turn off **Share mount position** or **Share target name** to keep them
 private. The site location is never sent. On exit, the plugin sends `offline`
 with no position. Hello mode never opens the Target Scheduler database.
+
+The server shows a telescope as online for 25 minutes after any check-in.
+After a failed check-in, the plugin retries within 10 minutes (or the
+check-in interval, if that is longer), so a short outage does not take the
+telescope offline.
 
 Collaborations and this telescope's shares are listed in Collab mode only. In
 Hello mode those lists say so.

@@ -24,8 +24,9 @@ internal sealed class NinaRig : IDisposable
     private readonly IImageSaveMediator images;
     private SavedFrame? lastFrame;
 
-    /// Raised after any slew, so the new position can be shared promptly.
-    internal event EventHandler? Slewed;
+    /// Raised when the mount connects, disconnects, parks, unparks or slews,
+    /// so the new state and position reach the server promptly.
+    internal event EventHandler? MountChanged;
 
     internal NinaRig(IProfileService profiles, ITelescopeMediator telescope, ICameraMediator camera, IRotatorMediator rotator, IImageSaveMediator images)
     {
@@ -35,6 +36,10 @@ internal sealed class NinaRig : IDisposable
         this.rotator = rotator;
         this.images = images;
         images.ImageSaved += OnImageSaved;
+        telescope.Connected += OnMount;
+        telescope.Disconnected += OnMount;
+        telescope.Parked += OnMount;
+        telescope.Unparked += OnMount;
         telescope.Slewed += OnSlewed;
     }
 
@@ -86,12 +91,8 @@ internal sealed class NinaRig : IDisposable
         var mount = telescope.GetInfo();
         var exposing = camera.GetInfo() is { Connected: true, IsExposing: true };
         var (ra, dec) = mount.Connected ? J2000(mount) : (null, null);
-        var state = !mount.Connected ? (exposing ? "exposing" : "offline")
-            : mount.Slewing ? "slewing"
-            : exposing ? "exposing"
-            : mount.AtPark ? "parked"
-            : mount.TrackingEnabled ? "tracking"
-            : "idle";
+        var state = CheckIn.State(mount.Connected, mount.Connected && mount.Slewing, mount.Connected && mount.AtPark,
+            mount.Connected && mount.TrackingEnabled, exposing);
 
         // Name what is being shot only while the mount is still on it: the
         // last saved frame's target, if recent and within a degree of here.
@@ -143,15 +144,21 @@ internal sealed class NinaRig : IDisposable
         catch (Exception error) { Logger.Warning("Starfront TargetScheduler Collab could not read a saved frame's target: " + error.Message); }
     }
 
-    private Task OnSlewed(object sender, MountSlewedEventArgs args)
+    private Task OnMount(object sender, EventArgs args)
     {
-        Slewed?.Invoke(this, EventArgs.Empty);
+        MountChanged?.Invoke(this, EventArgs.Empty);
         return Task.CompletedTask;
     }
+
+    private Task OnSlewed(object sender, MountSlewedEventArgs args) => OnMount(sender, args);
 
     public void Dispose()
     {
         images.ImageSaved -= OnImageSaved;
+        telescope.Connected -= OnMount;
+        telescope.Disconnected -= OnMount;
+        telescope.Parked -= OnMount;
+        telescope.Unparked -= OnMount;
         telescope.Slewed -= OnSlewed;
     }
 }

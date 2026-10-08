@@ -51,7 +51,7 @@ dotnet run --project tools/InteropCheck -c Release -- http://127.0.0.1:8800 "$en
 
 ```powershell
 ./build-package.ps1
-./tools/start-nina-smoke.ps1 -PluginZip artifacts/StarfrontTargetSchedulerCollab-0.1.1.0.zip
+./tools/start-nina-smoke.ps1 -PluginZip artifacts/StarfrontTargetSchedulerCollab-0.1.2.0.zip
 ```
 
 A test-only startup hook points N.I.N.A.'s data folder at
@@ -105,6 +105,14 @@ On 2026-10-08, for 0.1.1.0:
 - Both hostnames serve the same server. Sign-in links always name
   `collab.starfront.space`, which is why sign-in failed on the old address.
 - The screenshots in `docs/images/` come from these runs.
+
+Later on 2026-10-08, for 0.1.2.0:
+
+- 94 unit tests passed.
+- In Hello mode with a 5-minute check-in, the server showed the simulated
+  mount's state and position within 30 seconds of N.I.N.A. starting, from the
+  connect and unpark check-ins, with no slew. 0.1.1.0 had shown `offline` with
+  no position until the next check-in. After exit the server showed `offline`.
 
 Not yet run: a night on real equipment. The user confirmed the Discord
 sign-in registers a telescope and saves its token.

@@ -60,11 +60,11 @@ internal sealed class CollabController : INotifyPropertyChanged
         sendHello = new(() => Exclusive(token => HelloAsync(Mode == CollabSettings.Collab, token)), () => Mode != CollabSettings.Off, Report);
         poll = new(() => Exclusive(PollAsync), () => Mode == CollabSettings.Collab, Report);
         apply = new(() => Exclusive(_ => ApplyAsync()), () => pending is not null, Report);
-        rig.Slewed += (_, _) =>
+        rig.MountChanged += (_, _) =>
         {
-            // Share a new position soon after a slew, but not more than every 15 s.
-            var soon = lastHello + TimeSpan.FromSeconds(15);
-            nextHello = soon > DateTimeOffset.UtcNow ? soon : DateTimeOffset.UtcNow;
+            // Share the mount's new state and position soon after it connects,
+            // parks, unparks or slews, but not more than every 15 s.
+            nextHello = CheckIn.AfterMount(DateTimeOffset.UtcNow, lastHello);
             Wake();
         };
     }
@@ -153,7 +153,7 @@ internal sealed class CollabController : INotifyPropertyChanged
     public int CheckInMinutes
     {
         get => settings.CheckInMinutes;
-        set { settings.CheckInMinutes = value; nextHello = nextPoll = DateTimeOffset.UtcNow + CheckIn; Changed(); }
+        set { settings.CheckInMinutes = value; nextHello = nextPoll = DateTimeOffset.UtcNow + Interval; Changed(); }
     }
 
     public bool AutoApply
@@ -217,7 +217,7 @@ internal sealed class CollabController : INotifyPropertyChanged
     public ICommand PollCommand => poll;
     public ICommand ApplyCommand => apply;
 
-    private TimeSpan CheckIn => TimeSpan.FromMinutes(settings.CheckInMinutes);
+    private TimeSpan Interval => TimeSpan.FromMinutes(settings.CheckInMinutes);
     private Guid ProfileId => rig.Profile.Id;
 
     // ----------------------------------------------------------------- lifecycle
@@ -253,7 +253,7 @@ internal sealed class CollabController : INotifyPropertyChanged
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
             using var client = new CollabClient(server);
             await client.HelloAsync(account.Token, rig.ReadProfile(settings, NoExposures),
-                new Presence(null, null, "offline", false, null, null, rig.TelescopeName(settings)), deadline.Token);
+                new Presence(null, null, CheckIn.Offline, false, null, null, rig.TelescopeName(settings)), deadline.Token);
         }
         catch (Exception error) { Logger.Info("Starfront TargetScheduler Collab could not say goodbye to the server: " + error.Message); }
     }
@@ -310,7 +310,7 @@ internal sealed class CollabController : INotifyPropertyChanged
             if (reply.AgentId != account.AgentId) Remember(server, account with { AgentId = reply.AgentId });
             helloFailures = 0;
             lastHello = now;
-            nextHello = now + CheckIn;
+            nextHello = now + Interval;
             var skew = reply.ServerTime is { } time ? now.ToUnixTimeSeconds() - time : 0;
             HelloStatus = $"{Clock(now)}: {Describe(presence)}"
                 + (Math.Abs(skew) > 120 ? $" This computer's clock is {Math.Abs(skew):0} s {(skew > 0 ? "ahead of" : "behind")} the server's." : "");
@@ -320,7 +320,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized) { Reject(); return false; }
         catch (CollabException error)
         {
-            nextHello = now + Backoff(++helloFailures, CheckIn);
+            nextHello = now + CheckIn.RetryWait(++helloFailures, Interval);
             HelloStatus = $"{Clock(now)}: {error.Message} Trying again at {Clock(nextHello)}.";
             return false;
         }
@@ -345,7 +345,7 @@ internal sealed class CollabController : INotifyPropertyChanged
             exposures = Exposures();
             if (!await HelloAsync(collab: true, token))
             {
-                if (!rejected) nextPoll = now + Backoff(++pollFailures, CheckIn);
+                if (!rejected) nextPoll = now + CheckIn.RetryWait(++pollFailures, Interval);
                 return;
             }
             account = Account() ?? account;
@@ -375,13 +375,13 @@ internal sealed class CollabController : INotifyPropertyChanged
 
             await ReportAsync(store, server, account, now, token);
             pollFailures = 0;
-            nextPoll = now + CheckIn;
+            nextPoll = now + Interval;
         }
         catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized) { Reject(); }
         catch (Exception error) when (error is CollabException or WireException or TsException or SQLiteException or IOException
             or UnauthorizedAccessException)
         {
-            nextPoll = now + Backoff(++pollFailures, CheckIn);
+            nextPoll = now + CheckIn.RetryWait(++pollFailures, Interval);
             CollabStatus = $"{Clock(now)}: {error.Message} Trying again at {Clock(nextPoll)}.";
         }
     }
@@ -726,8 +726,6 @@ internal sealed class CollabController : INotifyPropertyChanged
 
     // ----------------------------------------------------------------- plumbing
 
-    private static TimeSpan Backoff(int failures, TimeSpan interval) =>
-        TimeSpan.FromSeconds(Math.Min(1800, interval.TotalSeconds * Math.Pow(2, Math.Min(failures - 1, 6))));
 
     private static string Count(int n, string noun) => $"{n} {noun}{(n == 1 ? "" : "s")}";
 

@@ -118,6 +118,7 @@ public sealed class TonightTests
 
     [Theory]
     [InlineData("L", "OSC-RGB")]
+    [InlineData("osc-rgb", "OSC-RGB")]
     [InlineData("L-eXtreme", "OSC-Ha+OIII")]
     [InlineData("Dual", "Ha+OIII")]
     public void PhysicalTaskFiltersKeepTheirDeliveredDataBand(string physical, string band)

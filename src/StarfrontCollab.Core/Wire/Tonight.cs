@@ -161,16 +161,17 @@ public static class TonightReader
             var definition = filters.FirstOrDefault(f => f.Filter == filter);
             var exposure = definition?.Exposure ?? 0.0;
             IReadOnlyList<string> bands = definition?.Channels.Count > 0 ? definition.Channels : [filter];
+            bands = [.. bands.Select(Filters.DataBand)];
             if (exposure <= 0 || exposure > 86_400) { holds.Add($"no sub length for {filter}"); continue; }
             exposures[filter] = exposure;
             if (wants is null) continue;
             if (count < wants.MinFramesPerVisit) holds.Add($"{count} {filter} frames is under the project's {wants.MinFramesPerVisit} per visit");
             if (wants.MinExposure is { } low && exposure < low) holds.Add($"{filter} at {exposure:g}s is under the project's {low:g}s");
             if (wants.MaxExposure is { } high && exposure > high) holds.Add($"{filter} at {exposure:g}s is over the project's {high:g}s");
-            if (wants.Filters.Count > 0 && !bands.Any(wants.Filters.ContainsKey)) holds.Add($"{filter} is not a filter this project wants");
+            if (wants.Filters.Count > 0 && !wants.Filters.Keys.Select(Filters.DataBand).Any(bands.Contains)) holds.Add($"{filter} is not a filter this project wants");
             if (bands.Any(band => band.StartsWith("OSC-", StringComparison.Ordinal)
                 && (!wants.AcceptColour || (band.Contains('+') ? !wants.AcceptOscNarrowband : !wants.AcceptOscRgb))))
-                holds.Add($"{filter} is disabled by this project's colour-camera rules");
+                holds.Add($"{Filters.DataBand(filter)} is disabled by this project's colour-camera rules");
         }
 
         var demands = new List<PanelDemand>();
@@ -202,7 +203,7 @@ public static class TonightReader
         {
             if (channel.ValueKind != JsonValueKind.String || channel.GetString() is not { Length: > 0 and <= 64 } name
                 || name.Any(char.IsControl)) throw Json.Bad("channels");
-            var band = Filters.Fold(name);
+            var band = Filters.DataBand(name);
             if (channels.Contains(band, StringComparer.Ordinal)) throw Json.Bad("channels");
             channels.Add(band);
         }

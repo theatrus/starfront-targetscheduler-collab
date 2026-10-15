@@ -62,36 +62,43 @@ public sealed record Presence(double? RaHours, double? Dec, string State, bool S
 public sealed record Contribution(
     string Project, string Task, string Night, string Filter, string Panel, int Frames, double Seconds, double Exposure,
     Region Footprint, double? Scale, double? FocalLength, double? Hfr, double? GuideRms,
-    double? MoonIllumination, double? MoonSeparation, double? Bandpass, bool Colour)
+    double? MoonIllumination, double? MoonSeparation, double? Bandpass, bool Colour, IReadOnlyList<string>? Channels = null)
 {
-    public JsonObject ToJson() => new()
+    public JsonObject ToJson()
     {
-        ["project"] = Project,
-        ["task"] = Task,
-        ["night"] = Night,
-        ["filterName"] = Filter,
-        ["panel"] = Panel,
-        ["frames"] = Frames,
-        ["seconds"] = Math.Round(Seconds, 3),
-        ["exposure"] = Math.Round(Exposure, 3),
-        ["footprint"] = new JsonObject
+        if (Channels is { Count: > 0 } && Channels.Any(band => band.StartsWith("OSC-", StringComparison.Ordinal) != Colour))
+            throw new WireException("The saved data bands do not match the camera type; reports are held for review.");
+        var body = new JsonObject
         {
-            ["ra"] = Footprint.Ra,
-            ["dec"] = Footprint.Dec,
-            ["width"] = Footprint.Width,
-            ["height"] = Footprint.Height,
-            ["rotation"] = Footprint.Rotation,
-        },
-        ["scale"] = Scale,
-        ["focalLength"] = FocalLength,
-        ["hfr"] = Hfr,
-        ["guideRms"] = GuideRms,
-        ["moonIllumination"] = MoonIllumination,
-        ["moonSeparation"] = MoonSeparation,
-        ["calibrated"] = false,
-        ["bandpass"] = Bandpass,
-        ["colour"] = Colour,
-    };
+            ["project"] = Project,
+            ["task"] = Task,
+            ["night"] = Night,
+            ["filterName"] = Filter,
+            ["panel"] = Panel,
+            ["frames"] = Frames,
+            ["seconds"] = Math.Round(Seconds, 3),
+            ["exposure"] = Math.Round(Exposure, 3),
+            ["footprint"] = new JsonObject
+            {
+                ["ra"] = Footprint.Ra,
+                ["dec"] = Footprint.Dec,
+                ["width"] = Footprint.Width,
+                ["height"] = Footprint.Height,
+                ["rotation"] = Footprint.Rotation,
+            },
+            ["scale"] = Scale,
+            ["focalLength"] = FocalLength,
+            ["hfr"] = Hfr,
+            ["guideRms"] = GuideRms,
+            ["moonIllumination"] = MoonIllumination,
+            ["moonSeparation"] = MoonSeparation,
+            ["calibrated"] = false,
+            ["bandpass"] = Bandpass,
+            ["colour"] = Colour,
+        };
+        if (Channels is { Count: > 0 }) body["channels"] = new JsonArray([.. Channels.Select(band => (JsonNode?)JsonValue.Create(band))]);
+        return body;
+    }
 }
 
 public sealed record Health(int Protocol, string Version, bool SignIn);

@@ -17,19 +17,21 @@ public sealed record PendingReport(
     double? HfrPixels, double? GuideRms, double? MoonIllumination, double? MoonSeparation)
 {
     public double Exposure => Frames == 0 ? 0 : Seconds / Frames;
+    public IReadOnlyList<string> Channels { get; init; } = [];
 }
 
 internal static class Reports
 {
-    private sealed record Plan(string Project, long TargetId, long ExposureMs, bool Grader, Region Footprint);
+    private sealed record Plan(string Project, long TargetId, long ExposureMs, bool Grader, Region Footprint, IReadOnlyList<string> Channels);
 
     internal static IReadOnlyList<PendingReport> Pending(SQLiteConnection db, ReportScope scope)
     {
         if (!TableExists(db, "starfront_collab_plan")) return [];
         var since = NightSky.NameOf(DateOnly.FromDateTime(scope.Now.UtcDateTime.AddDays(-scope.Days)));
-        var rows = Rows(db, """
+        var channelColumn = Schema.HasChannels(db) ? "p.channels" : "'[]'";
+        var rows = Rows(db, $"""
             SELECT p.remote_task, p.night, p.panel_index, p.filter, p.exposure_ms, t.Id, c.remote_project, IFNULL(pr.enablegrader, 0),
-                j.ra_deg, j.dec_deg, j.width_deg, j.height_deg, j.rotation_deg
+                j.ra_deg, j.dec_deg, j.width_deg, j.height_deg, j.rotation_deg, {channelColumn}
             FROM starfront_collab_plan p
             JOIN starfront_collab_target j ON j.target_guid = p.target_guid
             JOIN starfront_collab_project c ON c.project_guid = j.project_guid
@@ -40,7 +42,7 @@ internal static class Reports
         var plans = rows.GroupBy(
             row => new ReportKey(Text(row[0]), Text(row[1]), Long(row[2]).ToString(System.Globalization.CultureInfo.InvariantCulture), Text(row[3])),
             row => new Plan(Text(row[6]), Long(row[5]), Long(row[4]), Long(row[7]) != 0,
-                new Region(Double(row[8]), Double(row[9]), Double(row[10]), Double(row[11]), Double(row[12]))));
+                new Region(Double(row[8]), Double(row[9]), Double(row[10]), Double(row[11]), Double(row[12])), ReadChannels(Text(row[13]))));
 
         var ledger = TableExists(db, "starfront_collab_report");
         var pending = new List<PendingReport>();
@@ -72,6 +74,8 @@ internal static class Reports
             """, [start.ToUnixTimeSeconds(), end.ToUnixTimeSeconds(), scope.ProfileId, .. targets.Cast<object?>()]);
 
         var grader = plans.Any(p => p.Grader);
+        if (plans.Any(p => !p.Channels.SequenceEqual(plans[0].Channels)))
+            throw new TsException("The night's saved data bands conflict; reports are held for review.");
         var footprint = plans[0].Footprint;
         int count = 0;
         double seconds = 0, hfr = 0, rms = 0, lit = 0, apart = 0;
@@ -102,7 +106,21 @@ internal static class Reports
         }
         if (count == 0) return null;
         return new(key, plans[0].Project, count, seconds, footprint, filterName ?? key.Filter,
-            everyHfr ? hfr / count : null, everyRms ? rms / count : null, Math.Round(lit / count, 3), Math.Round(apart / count, 1));
+            everyHfr ? hfr / count : null, everyRms ? rms / count : null, Math.Round(lit / count, 3), Math.Round(apart / count, 1))
+        { Channels = plans[0].Channels };
+    }
+
+    private static IReadOnlyList<string> ReadChannels(string text)
+    {
+        try
+        {
+            if (text.Length > 4096) throw new JsonException();
+            var channels = JsonSerializer.Deserialize<string[]>(text);
+            if (channels is null || channels.Length > 32 || channels.Any(c => string.IsNullOrWhiteSpace(c) || c.Length > 64 || c.Any(char.IsControl)))
+                throw new JsonException();
+            return channels;
+        }
+        catch (JsonException) { throw new TsException("The night's saved data bands are unreadable; reports are held for review."); }
     }
 
     internal static void Record(SQLiteConnection db, ReportScope scope, IReadOnlyList<(PendingReport Report, Recorded Verdict)> recorded)

@@ -82,6 +82,81 @@ public sealed class TonightTests
     }
 
     [Fact]
+    public void StarfrontColourCameraAndSkyRulesAreRetained()
+    {
+        var root = JsonNode.Parse(Fixture("starfront-tonight.json"))!.AsObject();
+        root.Remove("requirementsByProject");
+        root["requirements"]!["acceptOscRgb"] = false;
+        root["requirements"]!["acceptOscNarrowband"] = true;
+        root["requirements"]!["maxBortle"] = 5;
+        var rules = Read(root.ToJsonString()).Shares[0].Requirements!;
+        Assert.False(rules.AcceptOscRgb);
+        Assert.True(rules.AcceptOscNarrowband);
+        Assert.Equal(5, rules.MaxBortle);
+    }
+
+    [Theory]
+    [InlineData("osc-rgb", "OSC-RGB", "acceptOscRgb")]
+    [InlineData("osc-ha+oiii", "OSC-Ha+OIII", "acceptOscNarrowband")]
+    [InlineData("OSC-Ha", "OSC-Ha", "acceptColour")]
+    [InlineData("OSC-Ha", "OSC-Ha", "acceptOscRgb")]
+    public void StarfrontDisabledColourBandsAreHeld(string spelling, string band, string flag)
+    {
+        var root = JsonNode.Parse(Fixture("starfront-tonight.json"))!.AsObject();
+        root.Remove("requirementsByProject");
+        root.Remove("task");
+        var task = root["tasks"]![0]!;
+        task["filters"] = new JsonArray(new JsonObject { ["filter"] = spelling, ["exposure"] = 300 });
+        task["visit"] = new JsonObject { ["frames"] = new JsonObject { [spelling] = 11 } };
+        root["requirements"]!["filters"] = new JsonObject { [spelling] = 7 };
+        Assert.Empty(Read(root.ToJsonString()).Shares[0].Holds);
+        root["requirements"]![flag] = false;
+        var share = Read(root.ToJsonString()).Shares[0];
+        Assert.Contains($"{band} is disabled by this project's colour-camera rules", share.Holds);
+        Assert.Empty(share.Demands);
+    }
+
+    [Theory]
+    [InlineData("L", "OSC-RGB")]
+    [InlineData("L-eXtreme", "OSC-Ha+OIII")]
+    [InlineData("Dual", "Ha+OIII")]
+    public void PhysicalTaskFiltersKeepTheirDeliveredDataBand(string physical, string band)
+    {
+        var root = JsonNode.Parse(Fixture("starfront-tonight.json"))!.AsObject();
+        root.Remove("task");
+        root.Remove("requirementsByProject");
+        var task = root["tasks"]![0]!;
+        task["filters"] = new JsonArray(new JsonObject
+        {
+            ["filter"] = physical,
+            ["exposure"] = 300,
+            ["channels"] = new JsonArray(band)
+        });
+        task["visit"] = new JsonObject { ["frames"] = new JsonObject { [physical] = 11 } };
+        root["requirements"]!["filters"] = new JsonObject { [band] = 7 };
+        var share = Read(root.ToJsonString()).Shares[0];
+        Assert.Empty(share.Holds);
+        Assert.All(share.Demands, d => Assert.Equal(physical, d.Filter));
+        Assert.Equal([band], Assert.Single(share.Filters).Channels);
+        if (band.StartsWith("OSC-", StringComparison.Ordinal))
+        {
+            root["requirements"]!["acceptColour"] = false;
+            Assert.Empty(Read(root.ToJsonString()).Shares[0].Demands);
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public void InvalidBortleLimitsAreRefused(int value)
+    {
+        var root = JsonNode.Parse(Fixture("starfront-tonight.json"))!.AsObject();
+        root.Remove("requirementsByProject");
+        root["requirements"]!["maxBortle"] = value;
+        Assert.Throws<WireException>(() => Read(root.ToJsonString()));
+    }
+
+    [Fact]
     public void LegacySingleTaskRepliesAreRead()
     {
         var root = JsonNode.Parse(Fixture("starfront-tonight.json"))!.AsObject();

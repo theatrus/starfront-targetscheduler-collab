@@ -45,6 +45,18 @@ public static partial class Filters
         ["sulfurii"] = "S",
         ["sulphur2"] = "S",
         ["sulfur2"] = "S",
+        ["oscrgb"] = "OSC-RGB",
+        ["oscha"] = "OSC-Ha",
+        ["oscoiii"] = "OSC-OIII",
+        ["oscsii"] = "OSC-SII",
+        ["oscha+oiii"] = "OSC-Ha+OIII",
+        ["oscsii+oiii"] = "OSC-SII+OIII",
+        ["oscha+sii"] = "OSC-Ha+SII",
+        ["oscha+oiii+sii"] = "OSC-Ha+OIII+SII",
+        ["ha+oiii"] = "Ha+OIII",
+        ["sii+oiii"] = "SII+OIII",
+        ["ha+sii"] = "Ha+SII",
+        ["ha+oiii+sii"] = "Ha+OIII+SII",
     };
 
     [GeneratedRegex(@"\s*\(?\s*(\d+(?:\.\d+)?)\s*nm\s*\)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

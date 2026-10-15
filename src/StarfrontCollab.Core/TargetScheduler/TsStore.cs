@@ -120,7 +120,12 @@ public sealed class TsStore(string path)
 
 internal static class Schema
 {
-    internal static void EnsureSideTables(SQLiteConnection db) => Exec(db, """
+    internal static bool HasChannels(SQLiteConnection db) =>
+        Rows(db, "PRAGMA table_info(starfront_collab_plan)").Any(row => Text(row[1]) == "channels");
+
+    internal static void EnsureSideTables(SQLiteConnection db)
+    {
+        Exec(db, """
         CREATE TABLE IF NOT EXISTS starfront_collab_project (
             project_guid TEXT NOT NULL PRIMARY KEY,
             server TEXT NOT NULL,
@@ -150,6 +155,7 @@ internal static class Schema
             baseline INTEGER NOT NULL,
             requested INTEGER NOT NULL,
             applied_at INTEGER NOT NULL,
+            channels TEXT NOT NULL DEFAULT '[]',
             PRIMARY KEY(exposureplan_guid, night));
         CREATE INDEX IF NOT EXISTS starfront_collab_plan_target ON starfront_collab_plan(target_guid, filter);
         CREATE TABLE IF NOT EXISTS starfront_collab_report (
@@ -167,4 +173,7 @@ internal static class Schema
             reported_at INTEGER NOT NULL,
             PRIMARY KEY(server, agent, remote_task, night, panel, filter));
         """);
+        if (!HasChannels(db))
+            Exec(db, "ALTER TABLE starfront_collab_plan ADD COLUMN channels TEXT NOT NULL DEFAULT '[]'");
+    }
 }

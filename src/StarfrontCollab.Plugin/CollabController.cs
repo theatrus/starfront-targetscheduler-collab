@@ -506,7 +506,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         {
             Contribution[] rows = [.. batch.Select(r => new Contribution(r.Project, r.Key.Task, r.Key.Night, r.Key.Filter, r.Key.Panel, r.Frames,
                 r.Seconds, r.Exposure, r.Footprint, optics.Scale, optics.FocalLength, r.HfrPixels * optics.Scale, r.GuideRms,
-                r.MoonIllumination, r.MoonSeparation, Filters.Bandpass(r.FilterName), optics.Colour))];
+                r.MoonIllumination, r.MoonSeparation, Filters.Bandpass(r.FilterName), optics.Colour, r.Channels))];
             var verdicts = await client.ReportAsync(account.Token, rows, token);
             await Task.Run(() => store.RecordReports(scope, [.. batch.Zip(verdicts)]), token);
             sent += rows.Length;

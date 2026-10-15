@@ -116,3 +116,39 @@ Later on 2026-10-08, for 0.1.2.0:
 
 Not yet run: a night on real equipment. The user confirmed the Discord
 sign-in registers a telescope and saves its token.
+
+## Current Starfront compatibility
+
+The API was checked on 2026-10-15 against
+[`bray-sfro/starfront@60f87d0`](https://github.com/bray-sfro/starfront/tree/60f87d016c65798ec244b161f722587004af5d18),
+whose server reports **0.2.43**, wire protocol **1**. Starfront now publishes
+its source under MPL-2.0; no Starfront implementation is copied here.
+The upstream repository also supplies its own acquisition plugin under `nina/`.
+This plugin remains the independent Target Scheduler adapter; PSF Guard is
+not required and the two plugins do not share report ownership.
+
+The loopback interop check covers enrollment with a local owner credential,
+full-profile hello, presence, browsing, join, nightly work, TS preview/apply,
+contribution reports, duplicate replies and goodbye. All records and frames
+are synthetic and stay on the throwaway server. This does not test a real
+Discord approval or replace a NINA hardware smoke test.
+
+Readers retain `acceptOscRgb`, `acceptOscNarrowband` and `maxBortle` and hold
+work for explicitly disabled OSC bands. Tasks keep the physical filter name
+in `filters[].filter`; `filters[].channels` says what data bands land. Known
+bands such as `OSC-RGB` and `OSC-Ha+OIII` have stable spelling, not mono credit.
+The physical filter still selects the NINA wheel slot and exposure template.
+Its channels are saved with the nightly plan and sent in reports, including
+delayed reports. A changed same-night channel mapping is held for review.
+Existing mono LRGBSHO and the server's inferred colour Clear mapping are
+covered by the independent loopback check, including the actual credited band.
+
+Two extensions need separate work before claiming full feature support:
+
+- **Custom commissioning.** Starfront infers familiar filter names from the
+  hello profile. This plugin does not yet offer custom channel maps for filters
+  the server cannot infer, or a commissioned Bortle rating. These stay unknown.
+- **File delivery.** Starfront now has an opt-in project `collectFiles` flag
+  and `PUT /api/v1/projects/{id}/files/{name}`. This plugin reports metadata and
+  integration totals only; it does not upload FITS/XISF or calibration files
+  to Starfront. Reports and file transfer are separate operations.

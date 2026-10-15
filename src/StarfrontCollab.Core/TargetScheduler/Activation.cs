@@ -1,5 +1,6 @@
 using System.Data.SQLite;
 using System.Globalization;
+using System.Text.Json;
 using StarfrontCollab.Wire;
 using static StarfrontCollab.TargetScheduler.Sql;
 
@@ -65,8 +66,7 @@ internal sealed class Activation(SQLiteConnection db, ActivationRequest request)
             foreach (var demand in panel)
             {
                 if (!usable.TryGetValue((demand.Filter, demand.ExposureSeconds), out var template)) continue;
-                EnsurePlan(project, target, share, demand, template);
-                plans++;
+                if (EnsurePlan(project, target, share, demand, template)) plans++;
             }
         }
     }
@@ -192,10 +192,11 @@ internal sealed class Activation(SQLiteConnection db, ActivationRequest request)
         return id;
     }
 
-    private void EnsurePlan(ProjectRow project, TargetRow target, Share share, PanelDemand demand, long template)
+    private bool EnsurePlan(ProjectRow project, TargetRow target, Share share, PanelDemand demand, long template)
     {
         var exposureMs = (long)Math.Round(demand.ExposureSeconds * 1000);
         var label = $"{target.Name} {demand.Filter}";
+        var channels = JsonSerializer.Serialize(share.Filters.Single(f => f.Filter == demand.Filter).Channels);
         var found = Rows(db, """
             SELECT e.guid, IFNULL(e.acquired, 0), IFNULL(e.accepted, 0), IFNULL(e.desired, 0), IFNULL(e.exposure, 0), IFNULL(e.exposureTemplateId, 0),
                 IFNULL(e.enabled, 1), IFNULL(e.targetid, 0)
@@ -209,6 +210,12 @@ internal sealed class Activation(SQLiteConnection db, ActivationRequest request)
         {
             var row = found[0];
             guid = Text(row[0]);
+            var oldChannels = Text(Scalar(db, "SELECT channels FROM starfront_collab_plan WHERE exposureplan_guid=@p1 AND night=@p2", guid, Night));
+            if (oldChannels.Length > 0 && oldChannels != "[]" && oldChannels != channels)
+            {
+                holds.Add($"{label}: delivered data bands changed; the existing night's mapping is retained for review");
+                return false;
+            }
             // Tonight's goal sits on top of what the plan held when tonight was
             // first dealt, so frames from earlier nights are not shot again and
             // frames already taken tonight are not asked for twice.
@@ -238,19 +245,20 @@ internal sealed class Activation(SQLiteConnection db, ActivationRequest request)
         }
 
         var recorded = Rows(db, """
-            SELECT remote_task, panel_index, exposure_ms, requested FROM starfront_collab_plan WHERE exposureplan_guid = @p1 AND night = @p2
+            SELECT remote_task, panel_index, exposure_ms, requested, channels FROM starfront_collab_plan WHERE exposureplan_guid = @p1 AND night = @p2
             """, guid, Night);
         var current = recorded.Count > 0 && Text(recorded[0][0]) == share.TaskId && Long(recorded[0][1]) == demand.PanelIndex
-            && Long(recorded[0][2]) == exposureMs && Long(recorded[0][3]) == demand.Frames;
+            && Long(recorded[0][2]) == exposureMs && Long(recorded[0][3]) == demand.Frames && Text(recorded[0][4]) == channels;
         if (!current)
             Exec(db, """
-                INSERT INTO starfront_collab_plan (exposureplan_guid, night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at)
-                VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10)
+                INSERT INTO starfront_collab_plan (exposureplan_guid, night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at, channels)
+                VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11)
                 ON CONFLICT(exposureplan_guid, night) DO UPDATE SET target_guid = excluded.target_guid, remote_task = excluded.remote_task,
                     panel_index = excluded.panel_index, filter = excluded.filter, exposure_ms = excluded.exposure_ms,
-                    requested = excluded.requested, applied_at = excluded.applied_at
-                """, guid, Night, target.Guid, share.TaskId, demand.PanelIndex, demand.Filter, exposureMs, baseline, demand.Frames, Now);
+                    requested = excluded.requested, applied_at = excluded.applied_at, channels = excluded.channels
+                """, guid, Night, target.Guid, share.TaskId, demand.PanelIndex, demand.Filter, exposureMs, baseline, demand.Frames, Now, channels);
         touched.Add(guid);
+        return true;
     }
 
     /// Plans this rig created that tonight's deal does not ask for are paused,

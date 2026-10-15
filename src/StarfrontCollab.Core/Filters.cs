@@ -62,6 +62,29 @@ public static partial class Filters
 
     public static bool Same(string left, string right) => string.Equals(Fold(left), Fold(right), StringComparison.Ordinal);
 
+    /// Data bands are distinct from physical wheel names and stored plan keys.
+    public static string DataBand(string name)
+    {
+        var physical = Fold(name);
+        var key = new string([.. physical.ToLowerInvariant().Where(c => !char.IsWhiteSpace(c) && c is not ('_' or '-' or '/'))]);
+        return key switch
+        {
+            "oscrgb" => "OSC-RGB",
+            "oscha" => "OSC-Ha",
+            "oscoiii" => "OSC-OIII",
+            "oscsii" => "OSC-SII",
+            "oscha+oiii" => "OSC-Ha+OIII",
+            "oscsii+oiii" => "OSC-SII+OIII",
+            "oscha+sii" => "OSC-Ha+SII",
+            "oscha+oiii+sii" => "OSC-Ha+OIII+SII",
+            "ha+oiii" => "Ha+OIII",
+            "sii+oiii" => "SII+OIII",
+            "ha+sii" => "Ha+SII",
+            "ha+oiii+sii" => "Ha+OIII+SII",
+            _ => physical,
+        };
+    }
+
     /// A bandpass written into the name, such as "Ha 3nm" or "OIII (6.5 nm)".
     public static double? Bandpass(string name)
     {

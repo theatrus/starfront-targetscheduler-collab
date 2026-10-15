@@ -12,6 +12,7 @@ using StarfrontCollab.Wire;
 namespace StarfrontCollab.Plugin;
 
 public sealed record ModeChoice(string Key, string Label);
+public sealed record BortleChoice(int Value, string Label);
 public sealed record ShareRow(string Title, string Detail, bool Offered, ICommand Accept, ICommand Decline);
 public sealed record ProjectRow(string Title, string Detail, bool CanJoin, ICommand Join);
 
@@ -137,6 +138,26 @@ internal sealed class CollabController : INotifyPropertyChanged
     }
 
     public string TelescopeNameHint => "Blank uses the profile name: " + rig.Profile.Name;
+
+    public IReadOnlyList<BortleChoice> BortleChoices { get; } =
+    [
+        new(0, "Unknown"), new(1, "1 - Darkest"), new(2, "2"), new(3, "3"), new(4, "4"),
+        new(5, "5"), new(6, "6"), new(7, "7"), new(8, "8"), new(9, "9 - Inner city"),
+    ];
+
+    public int Bortle
+    {
+        get => settings.Bortle;
+        set
+        {
+            settings.Bortle = value;
+            pending = null;
+            apply.Refresh();
+            nextHello = nextPoll = DateTimeOffset.UtcNow;
+            Changed();
+            Wake();
+        }
+    }
 
     public bool SharePosition
     {
@@ -365,7 +386,8 @@ internal sealed class CollabController : INotifyPropertyChanged
             if (open is not null) ShowProjects(open, night);
 
             var store = new TsStore(settings.DatabasePath);
-            var request = new ActivationRequest(server.AbsoluteUri, account.AgentId, ProfileId.ToString("D"), tonight, rig.WheelFilters(), settings.Binning, now);
+            var request = new ActivationRequest(server.AbsoluteUri, account.AgentId, ProfileId.ToString("D"), tonight, rig.WheelFilters(), settings.Binning, now,
+                settings.Bortle > 0 ? settings.Bortle : null);
             var commit = settings.AutoApply;
             var result = await Task.Run(() => store.Activate(request, commit), token);
             pending = !commit && result.Changes.Count > 0 ? request : null;
@@ -506,7 +528,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         {
             Contribution[] rows = [.. batch.Select(r => new Contribution(r.Project, r.Key.Task, r.Key.Night, r.Key.Filter, r.Key.Panel, r.Frames,
                 r.Seconds, r.Exposure, r.Footprint, optics.Scale, optics.FocalLength, r.HfrPixels * optics.Scale, r.GuideRms,
-                r.MoonIllumination, r.MoonSeparation, Filters.Bandpass(r.FilterName), optics.Colour))];
+                r.MoonIllumination, r.MoonSeparation, Filters.Bandpass(r.FilterName), optics.Colour, r.Channels, r.Bortle))];
             var verdicts = await client.ReportAsync(account.Token, rows, token);
             await Task.Run(() => store.RecordReports(scope, [.. batch.Zip(verdicts)]), token);
             sent += rows.Length;

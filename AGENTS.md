@@ -24,7 +24,8 @@ This guide is for people and coding agents working in this repository.
 ### Protocol
 
 - The server is Starfront's collaboration server (AstroCollab protocol 1).
-  Its code has no license: read it to interoperate, never copy it.
+  Starfront is MPL-2.0 as of revision `60f87d0`. Read it to verify the wire
+  contract; this repository does not copy its implementation.
 - HTTPS only, except plain HTTP to this computer with explicit test consent.
   Never follow a redirect. Bearer tokens only.
 - Tokens live only in Windows Credential Manager. Never put one in settings,

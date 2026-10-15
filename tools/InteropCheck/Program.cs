@@ -49,7 +49,7 @@ Check(enrolled.AgentId.Length > 0, $"enrolled telescope {enrolled.AgentId}");
 var agent = enrolled.Token;
 
 var rig = new RigProfile("Interop rig", 530, 3.76, 6248, 4176, 1, false, null, 6,
-    [.. wheel.Select(name => (name, Filters.Bandpass(name)))], exposures);
+    [.. wheel.Select(name => (name, Filters.Bandpass(name)))], exposures, Bortle: 4);
 var presence = new Presence(0.7123, 41.27, "exposing", false, "M31 halo panel 0", null, "Interop rig 530");
 var hello = await client.HelloAsync(agent, rig, presence, CancellationToken.None);
 Check(hello.AgentId == enrolled.AgentId, $"hello answered for {hello.AgentId}; server clock {hello.ServerTime:0}");
@@ -78,6 +78,9 @@ var created = await Post("projects", owner, new JsonObject
         ["maxExposure"] = 600.0,
         ["minAltitude"] = 30.0,
         ["maxHfr"] = 4.0,
+        ["acceptOscRgb"] = false,
+        ["acceptOscNarrowband"] = true,
+        ["maxBortle"] = 5,
     },
     ["goals"] = new JsonObject { ["H"] = 10.0, ["O"] = 10.0 },
 });
@@ -87,6 +90,11 @@ Check(projectId.Length > 0, $"owner started project {projectId}");
 var open = await client.ProjectsAsync(agent, CancellationToken.None);
 var listed = open.FirstOrDefault(p => p.Id == projectId);
 Check(listed is { Compatible: true }, $"project listed; compatible: {listed?.Compatible} {listed?.Compatibility}");
+await client.HelloAsync(agent, rig with { Bortle = 8 }, null, CancellationToken.None);
+var brightSky = (await client.ProjectsAsync(agent, CancellationToken.None)).Single(p => p.Id == projectId);
+Check(brightSky.Compatible == false && brightSky.Compatibility.Contains("Bortle 8", StringComparison.Ordinal),
+    "full-profile hello sends Bortle and changes project compatibility");
+await client.HelloAsync(agent, rig, presence, CancellationToken.None);
 
 var now = DateTimeOffset.UtcNow;
 var night = NightSky.For(now, Latitude, Longitude);
@@ -98,6 +106,8 @@ using (var reply = await client.TonightAsync(agent, night, CancellationToken.Non
     tonight = TonightReader.Read(reply.RootElement, enrolled.AgentId, night.Name);
 var share = tonight.Shares.Single(s => s.ProjectId == projectId);
 Check(share.Holds.Count == 0, "tonight's share is schedulable" + (share.Holds.Count > 0 ? ": " + string.Join("; ", share.Holds) : ""));
+Check(share.Requirements is { AcceptOscRgb: false, AcceptOscNarrowband: true, MaxBortle: 5 },
+    "tonight retains the current Starfront colour-camera and sky limits");
 Console.WriteLine($"        {share.Cells.Count} cells; tonight {string.Join(", ", share.Demands.GroupBy(d => d.Filter).Select(g => $"{g.Count()} × {g.First().Frames} {g.Key} at {g.First().ExposureSeconds}s"))}");
 
 var folder = Path.Combine(Path.GetTempPath(), "starfront-collab-interop", Guid.NewGuid().ToString("N"));
@@ -105,7 +115,7 @@ Directory.CreateDirectory(folder);
 var database = Path.Combine(folder, "schedulerdb.sqlite");
 BuildTargetScheduler(database);
 var store = new TsStore(database);
-var request = new ActivationRequest(server.AbsoluteUri, enrolled.AgentId, Profile, tonight, wheel, 1, now);
+var request = new ActivationRequest(server.AbsoluteUri, enrolled.AgentId, Profile, tonight, wheel, 1, now, rig.Bortle);
 
 var preview = store.Activate(request, commit: false);
 Check(preview.Changes.Count > 0 && Count(database, "SELECT COUNT(*) FROM target") == 0, $"preview lists {preview.Changes.Count} changes and writes nothing");
@@ -139,7 +149,11 @@ if (report is not null)
 {
     var contribution = new Contribution(report.Project, report.Key.Task, report.Key.Night, report.Key.Filter, report.Key.Panel, report.Frames,
         report.Seconds, report.Exposure, report.Footprint, rig.Scale, rig.FocalLength, report.HfrPixels * rig.Scale, report.GuideRms,
-        report.MoonIllumination, report.MoonSeparation, Filters.Bandpass(report.FilterName), rig.Colour);
+        report.MoonIllumination, report.MoonSeparation, Filters.Bandpass(report.FilterName), rig.Colour, report.Channels, report.Bortle);
+    Check(report.Bortle == 4, "nightly report retains the declared Bortle 4 rating");
+    var refusedSky = await client.ReportAsync(agent, [contribution with { Bortle = 8, Frames = 1, Seconds = contribution.Exposure }], CancellationToken.None);
+    Check(!refusedSky.Single().Accepted && refusedSky.Single().Summary.Contains("Bortle 8", StringComparison.Ordinal),
+        "server applies the project's Bortle limit to a bright-sky report");
     var verdicts = await client.ReportAsync(agent, [contribution], CancellationToken.None);
     var verdict = verdicts.Single();
     Check(verdict.Accepted, $"server recorded {verdict.Id}: {verdict.Summary}");
@@ -168,6 +182,56 @@ using (var seen = await Get("presence", agent))
 {
     var row = seen.RootElement.GetProperty("telescopes").EnumerateArray().First(t => t.GetProperty("id").GetString() == goodbye.AgentId);
     Check(row.GetProperty("state").GetString() == "offline" && row.GetProperty("ra").ValueKind == JsonValueKind.Null, "goodbye clears the position");
+}
+
+// Physical filters select equipment; `channels` says which data band lands.
+// A colour Clear filter is still L on the task, but earns only OSC-RGB credit.
+var colourAgent = await client.EnrollAsync(owner, "Interop OSC TEST ONLY", CancellationToken.None);
+var colourRig = rig with { Colour = true, Filters = [("Clear", null)], Exposures = new Dictionary<string, double> { ["Clear"] = 120 }, Bortle = null };
+await client.HelloAsync(colourAgent.Token, colourRig, null, CancellationToken.None);
+using (var colourProject = await Post("projects", owner, new JsonObject
+{
+    ["name"] = "Interop OSC TEST ONLY",
+    ["kind"] = "single",
+    ["region"] = new JsonObject { ["ra"] = 10.6847, ["dec"] = 41.269, ["width"] = 3.0, ["height"] = 2.0 },
+    ["requirements"] = new JsonObject { ["filters"] = new JsonObject { ["OSC-RGB"] = null }, ["minFramesPerVisit"] = 1 },
+    ["goals"] = new JsonObject { ["OSC-RGB"] = 10.0 },
+}))
+{
+    var colourProjectId = colourProject.RootElement.GetProperty("project").GetProperty("id").GetString()!;
+    await client.JoinAsync(colourAgent.Token, colourProjectId, night, colourRig.Exposures, CancellationToken.None);
+    using var response = await client.TonightAsync(colourAgent.Token, night, CancellationToken.None);
+    var work = TonightReader.Read(response.RootElement, colourAgent.AgentId, night.Name);
+    var colourShare = work.Shares.Single(s => s.ProjectId == colourProjectId);
+    Check(colourShare.Holds.Count == 0, "colour work is readable: " + string.Join("; ", colourShare.Holds));
+    var demand = colourShare.Demands.FirstOrDefault();
+    Check(demand?.Filter == "L" && colourShare.Filters.Single(f => f.Filter == "L").Channels.SequenceEqual(["OSC-RGB"]),
+        "colour task keeps the physical L filter and separate OSC-RGB data band");
+    Check(demand?.ExposureSeconds == 120, "colour task keeps the Clear template's 120-second sub length");
+    var before = Count(database, "SELECT COUNT(*) FROM exposureplan");
+    var colourApply = store.Activate(new ActivationRequest(server.AbsoluteUri, colourAgent.AgentId, Profile, work, ["Clear"], 1, now), commit: true);
+    Check(colourApply.Plans == 1 && colourApply.Holds.Count == 0 && Count(database, "SELECT COUNT(*) FROM exposureplan") == before + 1,
+        "colour work activates a physical Clear template, never a fictitious OSC-RGB wheel filter");
+    if (demand is not null && colourApply.Plans == 1)
+    {
+        var colourTarget = Count(database, "SELECT t.Id FROM target t JOIN starfront_collab_target j ON j.target_guid=t.guid JOIN starfront_collab_project c ON c.project_guid=j.project_guid WHERE c.agent=@p1", colourAgent.AgentId);
+        Exec(database, """
+            INSERT INTO acquiredimage (projectId,targetId,acquireddate,filtername,gradingStatus,metadata,profileId,guid)
+            SELECT projectid,Id,@p2,'Clear',1,@p3,@p4,@p5 FROM target WHERE Id=@p1
+            """, colourTarget, now.ToUnixTimeSeconds(),
+            new JsonObject { ["ExposureDuration"] = demand.ExposureSeconds }.ToJsonString(), Profile, Guid.NewGuid().ToString("D"));
+        var colourScope = scope with { AgentId = colourAgent.AgentId };
+        var colourReport = store.PendingReports(colourScope).Single();
+        var contribution = new Contribution(colourReport.Project, colourReport.Key.Task, colourReport.Key.Night,
+            colourReport.Key.Filter, colourReport.Key.Panel, colourReport.Frames, colourReport.Seconds, colourReport.Exposure,
+            colourReport.Footprint, colourRig.Scale, colourRig.FocalLength, null, null,
+            colourReport.MoonIllumination, colourReport.MoonSeparation, null, true, colourReport.Channels, colourReport.Bortle);
+        var recorded = await client.ReportAsync(colourAgent.Token, [contribution], CancellationToken.None);
+        Check(recorded.Single().Accepted, "colour report accepted as OSC data: " + recorded.Single().Summary);
+        using var ledger = await Get($"projects/{colourProjectId}", null);
+        var credit = ledger.RootElement.GetProperty("contributions")[0].GetProperty("payload");
+        Check(credit.GetProperty("filterName").GetString() == "OSC-RGB", "colour report receives OSC-RGB credit, not mono luminance credit");
+    }
 }
 
 SQLiteConnection.ClearAllPools();

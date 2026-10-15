@@ -22,15 +22,18 @@ public sealed record Region(double Ra, double Dec, double Width, double Height, 
 /// One of this rig's cells over a project, numbered as the server numbers them.
 public sealed record Cell(int Index, int Row, int Column, Region Region);
 
-public sealed record FilterShare(string Filter, double Exposure, double Hours);
+public sealed record FilterShare(string Filter, double Exposure, double Hours, IReadOnlyList<string> Channels);
 
 public sealed record Requirements(
     double? MinExposure, double? MaxExposure, IReadOnlyDictionary<string, double?> Filters,
     double? MinAltitude, double? MinMoonSeparation, double? MaxMoonIllumination, double? MaxHfr, double? MaxGuideRms,
-    int MinFramesPerVisit)
+    int MinFramesPerVisit, bool AcceptColour = true, bool AcceptOscRgb = true,
+    bool AcceptOscNarrowband = true, int? MaxBortle = null)
 {
     internal static Requirements Read(JsonElement value)
     {
+        var bortle = value.OptInt("maxBortle");
+        if (bortle is < 1 or > 9) throw Json.Bad("maxBortle");
         var filters = new Dictionary<string, double?>(StringComparer.Ordinal);
         if (value.OptObject("filters") is { } listed)
         {
@@ -40,7 +43,9 @@ public sealed record Requirements(
         }
         return new(value.OptNumber("minExposure"), value.OptNumber("maxExposure"), filters,
             value.OptNumber("minAltitude"), value.OptNumber("minMoonSeparation"), value.OptNumber("maxMoonIllumination"),
-            value.OptNumber("maxHfr"), value.OptNumber("maxGuideRms"), value.OptInt("minFramesPerVisit") ?? 10);
+            value.OptNumber("maxHfr"), value.OptNumber("maxGuideRms"), value.OptInt("minFramesPerVisit") ?? 10,
+            value.OptBool("acceptColour") ?? true, value.OptBool("acceptOscRgb") ?? true,
+            value.OptBool("acceptOscNarrowband") ?? true, bortle);
     }
 }
 
@@ -121,7 +126,10 @@ public static class TonightReader
         var order = task.OptArray("share", MaxCells).Select(v => Json.AsNumber(v) is { } n && Json.AsInt(n) is { } i ? i : throw Json.Bad("share")).ToArray();
 
         var filters = task.OptArray("filters", 32).Select(v => new FilterShare(
-            Filters.Fold(v.Text("filter", 64)), v.OptNumber("exposure") ?? 0.0, v.OptNumber("hours") ?? 0.0)).ToArray();
+            Filters.Fold(v.Text("filter", 64)), v.OptNumber("exposure") ?? 0.0, v.OptNumber("hours") ?? 0.0,
+            ReadChannels(v))).ToArray();
+        if (filters.Select(f => f.Filter).Distinct(StringComparer.Ordinal).Count() != filters.Length)
+            throw new WireException("The server listed a physical filter twice.");
 
         var frames = new Dictionary<string, int>(StringComparer.Ordinal);
         if (task.OptObject("visit") is { } visit && visit.OptObject("frames") is { } wanted)
@@ -150,14 +158,20 @@ public static class TonightReader
         var exposures = new Dictionary<string, double>(StringComparer.Ordinal);
         foreach (var (filter, count) in frames)
         {
-            var exposure = filters.FirstOrDefault(f => f.Filter == filter)?.Exposure ?? 0.0;
+            var definition = filters.FirstOrDefault(f => f.Filter == filter);
+            var exposure = definition?.Exposure ?? 0.0;
+            IReadOnlyList<string> bands = definition?.Channels.Count > 0 ? definition.Channels : [filter];
+            bands = [.. bands.Select(Filters.DataBand)];
             if (exposure <= 0 || exposure > 86_400) { holds.Add($"no sub length for {filter}"); continue; }
             exposures[filter] = exposure;
             if (wants is null) continue;
             if (count < wants.MinFramesPerVisit) holds.Add($"{count} {filter} frames is under the project's {wants.MinFramesPerVisit} per visit");
             if (wants.MinExposure is { } low && exposure < low) holds.Add($"{filter} at {exposure:g}s is under the project's {low:g}s");
             if (wants.MaxExposure is { } high && exposure > high) holds.Add($"{filter} at {exposure:g}s is over the project's {high:g}s");
-            if (wants.Filters.Count > 0 && !wants.Filters.ContainsKey(filter)) holds.Add($"{filter} is not a filter this project wants");
+            if (wants.Filters.Count > 0 && !wants.Filters.Keys.Select(Filters.DataBand).Any(bands.Contains)) holds.Add($"{filter} is not a filter this project wants");
+            if (bands.Any(band => band.StartsWith("OSC-", StringComparison.Ordinal)
+                && (!wants.AcceptColour || (band.Contains('+') ? !wants.AcceptOscNarrowband : !wants.AcceptOscRgb))))
+                holds.Add($"{Filters.DataBand(filter)} is disabled by this project's colour-camera rules");
         }
 
         var demands = new List<PanelDemand>();
@@ -180,5 +194,19 @@ public static class TonightReader
         var text = value.Text(key, 64);
         if (text.Length == 0 || !text.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) throw Json.Bad(key);
         return text;
+    }
+
+    private static IReadOnlyList<string> ReadChannels(JsonElement value)
+    {
+        var channels = new List<string>();
+        foreach (var channel in value.OptArray("channels", 32))
+        {
+            if (channel.ValueKind != JsonValueKind.String || channel.GetString() is not { Length: > 0 and <= 64 } name
+                || name.Any(char.IsControl)) throw Json.Bad("channels");
+            var band = Filters.DataBand(name);
+            if (channels.Contains(band, StringComparer.Ordinal)) throw Json.Bad("channels");
+            channels.Add(band);
+        }
+        return channels.Order(StringComparer.Ordinal).ToArray();
     }
 }

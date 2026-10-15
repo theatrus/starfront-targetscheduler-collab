@@ -84,6 +84,18 @@
                         </StackPanel>
                     </GroupBox>
 
+                    <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Site" Margin="0,0,0,8">
+                        <Grid Margin="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{DynamicResource StandardTextBlock}" Foreground="{DynamicResource PrimaryBrush}" VerticalAlignment="Center" Text="Bortle class" />
+                            <ComboBox Grid.Column="1" Style="{DynamicResource StandardComboBox}" Margin="0,2" ItemsSource="{Binding BortleChoices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Bortle}"
+                                ToolTip="Your site's sky rating, shared with Starfront. Unknown sends no rating. Each night's first applied assignment retains its rating for delayed reports." />
+                        </Grid>
+                    </GroupBox>
+
                     <GroupBox Style="{DynamicResource StandardGroupBox}" Header="Check-in" Margin="0,0,0,8">
                         <Grid Margin="4">
                             <Grid.ColumnDefinitions>

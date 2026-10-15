@@ -46,6 +46,12 @@ one. The token is stored in Windows Credential Manager. Once it is saved, the
 page says so and hides the sign-in controls. Each N.I.N.A. profile is its own
 telescope.
 
+Set **Site > Bortle class** to your site's sky rating (1 to 9), or leave it
+**Unknown**. The rating is shared in check-ins so Starfront can assess project
+compatibility. Each night's first applied assignment saves its rating for
+contribution reports. A later change does not relabel an earlier night; older
+assignments without a saved rating remain unknown. No site coordinates are sent.
+
 ## Hello mode
 
 The plugin checks in when N.I.N.A. starts, every 5 minutes, and a few seconds
@@ -147,10 +153,15 @@ filter, so work is dealt at that sub length.
 
 - Counts accepted frames. With the grader off, counts frames nobody rejected.
 - Sends frame count, integration time, HFR in arcseconds, guide RMS, Moon
-  illumination and Moon separation.
+  illumination, Moon separation and the saved nightly Bortle class.
 - Sends unknown values as unknown.
 - Uses the planned cell as the footprint.
 - Shows the server's verdict under **Activity**.
+
+Reports send metadata and integration totals, not image files. Starfront's
+separate [files page](https://collab.starfront.space/files) accepts FITS/XISF
+lights and calibration frames when the collaboration collects files. This
+plugin does not upload them automatically.
 
 ### Join and accept
 

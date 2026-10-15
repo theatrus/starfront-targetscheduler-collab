@@ -143,11 +143,18 @@ delayed reports. A changed same-night channel mapping is held for review.
 Existing mono LRGBSHO and the server's inferred colour Clear mapping are
 covered by the independent loopback check, including the actual credited band.
 
+The per-profile Bortle selector sends an operator-declared class in full-profile
+hello requests. Activation saves it with each nightly mapping in an owned
+nullable column; reports use that snapshot rather than today's settings.
+Unknown and legacy nights stay unknown. A same-night update keeps the first
+rating. The loopback check verifies a Bortle 8 report fails a Bortle 5 limit,
+while the saved Bortle 4 report succeeds.
+
 Two extensions need separate work before claiming full feature support:
 
 - **Custom commissioning.** Starfront infers familiar filter names from the
   hello profile. This plugin does not yet offer custom channel maps for filters
-  the server cannot infer, or a commissioned Bortle rating. These stay unknown.
+  the server cannot infer. These stay unknown.
 - **File delivery.** Starfront now has an opt-in project `collectFiles` flag
   and `PUT /api/v1/projects/{id}/files/{name}`. This plugin reports metadata and
   integration totals only; it does not upload FITS/XISF or calibration files

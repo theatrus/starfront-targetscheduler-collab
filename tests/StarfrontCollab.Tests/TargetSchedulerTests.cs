@@ -50,16 +50,74 @@ public sealed class TargetSchedulerTests : IDisposable
     {
         Store.Activate(Request(Tonight()), commit: true);
         database.Exec("ALTER TABLE starfront_collab_plan DROP COLUMN channels");
+        database.Exec("ALTER TABLE starfront_collab_plan DROP COLUMN bortle");
         var target = database.Scalar("SELECT Id FROM target ORDER BY Id LIMIT 1")!;
         AddFrame(target, Evening, "OIII 3nm", 1);
         var scope = new ReportScope(Server, Agent, TestDatabase.Profile, 37, -120, Evening);
         Assert.Empty(Assert.Single(Store.PendingReports(scope)).Channels);
+        Assert.Null(Assert.Single(Store.PendingReports(scope)).Bortle);
         Store.Activate(Request(Tonight()), commit: false);
         Assert.Equal(0, database.Count("SELECT COUNT(*) FROM pragma_table_info('starfront_collab_plan') WHERE name='channels'"));
-        Store.Activate(Request(Tonight()), commit: true);
+        Assert.Equal(0, database.Count("SELECT COUNT(*) FROM pragma_table_info('starfront_collab_plan') WHERE name='bortle'"));
+        Store.Activate(Request(Tonight()) with { Bortle = 4 }, commit: true);
         Assert.Equal(1, database.Count("SELECT COUNT(*) FROM pragma_table_info('starfront_collab_plan') WHERE name='channels'"));
+        Assert.Equal(1, database.Count("SELECT COUNT(*) FROM pragma_table_info('starfront_collab_plan') WHERE name='bortle'"));
+        Assert.Null(Assert.Single(Store.PendingReports(scope)).Bortle);
         Assert.Equal(1, Assert.Single(Store.PendingReports(scope)).Frames);
         Assert.Equal(23, database.Count("PRAGMA user_version"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(4)]
+    public void DelayedReportsKeepTheFirstAppliedNightlyRating(int? rating)
+    {
+        Store.Activate(Request(Tonight()) with { Bortle = rating }, commit: true);
+        var revised = Tonight(change: task => task["visit"]!["frames"]!["O"] = 12);
+        Store.Activate(Request(revised) with { Bortle = 8 }, commit: true);
+        var target = database.Scalar("SELECT Id FROM target ORDER BY Id LIMIT 1")!;
+        AddFrame(target, Evening, "OIII 3nm", 1);
+        var scope = new ReportScope(Server, Agent, TestDatabase.Profile, 37, -120, Evening.AddDays(1));
+        Assert.Equal(rating, Assert.Single(Store.PendingReports(scope)).Bortle);
+
+        Store.Activate(Request(Tonight("2026-10-06"), Evening.AddDays(1)) with { Bortle = 8 }, commit: true);
+        AddFrame(target, Evening.AddDays(1), "OIII 3nm", 1);
+        var reports = Store.PendingReports(scope);
+        Assert.Equal(rating, reports.Single(r => r.Key.Night == "2026-10-05").Bortle);
+        Assert.Equal(8, reports.Single(r => r.Key.Night == "2026-10-06").Bortle);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public void InvalidActivationRatingWritesNothing(int rating)
+    {
+        Assert.Throws<TsException>(() => Store.Activate(Request(Tonight()) with { Bortle = rating }, commit: true));
+        Assert.Equal(0, database.Count("SELECT COUNT(*) FROM project"));
+    }
+
+    [Fact]
+    public void ConflictingNightlyRatingsAreHeldForReview()
+    {
+        Store.Activate(Request(Tonight()) with { Bortle = 4 }, commit: true);
+        database.Exec("""
+            INSERT INTO starfront_collab_plan (exposureplan_guid, night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at, channels, bortle)
+            SELECT 'duplicate', night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at, channels, 8
+            FROM starfront_collab_plan ORDER BY rowid LIMIT 1
+            """);
+        var target = database.Scalar("SELECT Id FROM target ORDER BY Id LIMIT 1")!;
+        AddFrame(target, Evening, "OIII 3nm", 1);
+        var error = Assert.Throws<TsException>(() => Store.PendingReports(new(Server, Agent, TestDatabase.Profile, 37, -120, Evening)));
+        Assert.Contains("Bortle classes conflict", error.Message);
+    }
+
+    [Fact]
+    public void FractionalSavedRatingsAreHeldInsteadOfRounded()
+    {
+        Store.Activate(Request(Tonight()), commit: true);
+        database.Exec("UPDATE starfront_collab_plan SET bortle=1.5");
+        var error = Assert.Throws<TsException>(() => Store.PendingReports(new(Server, Agent, TestDatabase.Profile, 37, -120, Evening)));
+        Assert.Contains("Bortle class is unreadable", error.Message);
     }
 
     [Fact]

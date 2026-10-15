@@ -49,6 +49,17 @@ internal sealed class CollabSettings(IPluginOptionsAccessor options)
         set => options.SetValueBoolean(nameof(SharePosition), value);
     }
 
+    /// Zero is unknown; no sky rating is inferred from the site coordinates.
+    public int Bortle
+    {
+        get => options.GetValueInt32(nameof(Bortle), 0) is >= 1 and <= 9 and var rating ? rating : 0;
+        set
+        {
+            if (value is < 0 or > 9) throw new ArgumentOutOfRangeException(nameof(value), "Bortle class must be 0 (unknown) or 1 to 9.");
+            options.SetValueInt32(nameof(Bortle), value);
+        }
+    }
+
     public bool ShareTarget
     {
         get => options.GetValueBoolean(nameof(ShareTarget), true);

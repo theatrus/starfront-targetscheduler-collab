@@ -249,14 +249,15 @@ internal sealed class Activation(SQLiteConnection db, ActivationRequest request)
             """, guid, Night);
         var current = recorded.Count > 0 && Text(recorded[0][0]) == share.TaskId && Long(recorded[0][1]) == demand.PanelIndex
             && Long(recorded[0][2]) == exposureMs && Long(recorded[0][3]) == demand.Frames && Text(recorded[0][4]) == channels;
+        // Bortle belongs to the first applied mapping, not a later settings edit.
         if (!current)
             Exec(db, """
-                INSERT INTO starfront_collab_plan (exposureplan_guid, night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at, channels)
-                VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11)
+                INSERT INTO starfront_collab_plan (exposureplan_guid, night, target_guid, remote_task, panel_index, filter, exposure_ms, baseline, requested, applied_at, channels, bortle)
+                VALUES (@p1, @p2, @p3, @p4, @p5, @p6, @p7, @p8, @p9, @p10, @p11, @p12)
                 ON CONFLICT(exposureplan_guid, night) DO UPDATE SET target_guid = excluded.target_guid, remote_task = excluded.remote_task,
                     panel_index = excluded.panel_index, filter = excluded.filter, exposure_ms = excluded.exposure_ms,
                     requested = excluded.requested, applied_at = excluded.applied_at, channels = excluded.channels
-                """, guid, Night, target.Guid, share.TaskId, demand.PanelIndex, demand.Filter, exposureMs, baseline, demand.Frames, Now, channels);
+                """, guid, Night, target.Guid, share.TaskId, demand.PanelIndex, demand.Filter, exposureMs, baseline, demand.Frames, Now, channels, request.Bortle);
         touched.Add(guid);
         return true;
     }

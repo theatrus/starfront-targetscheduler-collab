@@ -7,7 +7,7 @@ namespace StarfrontCollab.TargetScheduler;
 public sealed class TsException(string message) : Exception(message);
 
 public sealed record ActivationRequest(
-    string Server, string AgentId, string ProfileId, Tonight Tonight, IReadOnlyList<string> WheelFilters, int Binning, DateTimeOffset Now);
+    string Server, string AgentId, string ProfileId, Tonight Tonight, IReadOnlyList<string> WheelFilters, int Binning, DateTimeOffset Now, int? Bortle = null);
 
 public sealed record ActivationResult(bool Committed, IReadOnlyList<string> Changes, IReadOnlyList<string> Holds, int Targets, int Plans);
 
@@ -30,6 +30,7 @@ public sealed class TsStore(string path)
     /// lists is exactly what Apply would do.
     public ActivationResult Activate(ActivationRequest request, bool commit)
     {
+        if (request.Bortle is < 1 or > 9) throw new TsException("Bortle class must be 1 to 9, or unknown.");
         using var db = Open(readOnly: false);
         using var transaction = db.BeginTransaction();
         var activation = new Activation(db, request);
@@ -123,6 +124,9 @@ internal static class Schema
     internal static bool HasChannels(SQLiteConnection db) =>
         Rows(db, "PRAGMA table_info(starfront_collab_plan)").Any(row => Text(row[1]) == "channels");
 
+    internal static bool HasBortle(SQLiteConnection db) =>
+        Rows(db, "PRAGMA table_info(starfront_collab_plan)").Any(row => Text(row[1]) == "bortle");
+
     internal static void EnsureSideTables(SQLiteConnection db)
     {
         Exec(db, """
@@ -156,6 +160,7 @@ internal static class Schema
             requested INTEGER NOT NULL,
             applied_at INTEGER NOT NULL,
             channels TEXT NOT NULL DEFAULT '[]',
+            bortle INTEGER CHECK (bortle BETWEEN 1 AND 9),
             PRIMARY KEY(exposureplan_guid, night));
         CREATE INDEX IF NOT EXISTS starfront_collab_plan_target ON starfront_collab_plan(target_guid, filter);
         CREATE TABLE IF NOT EXISTS starfront_collab_report (
@@ -175,5 +180,7 @@ internal static class Schema
         """);
         if (!HasChannels(db))
             Exec(db, "ALTER TABLE starfront_collab_plan ADD COLUMN channels TEXT NOT NULL DEFAULT '[]'");
+        if (!HasBortle(db))
+            Exec(db, "ALTER TABLE starfront_collab_plan ADD COLUMN bortle INTEGER CHECK (bortle BETWEEN 1 AND 9)");
     }
 }

@@ -83,7 +83,7 @@ internal sealed class NinaRig : IDisposable
             rotator.GetInfo().Connected ? null : settings.CameraAngle,
             settings.HoursPerNight > 0 ? settings.HoursPerNight : null,
             [.. WheelFilters().Select(name => (name, Filters.Bandpass(name)))],
-            exposures);
+            exposures, settings.Bortle > 0 ? settings.Bortle : null);
     }
 
     internal Presence ReadPresence(CollabSettings settings, IReadOnlyDictionary<string, string> projects)

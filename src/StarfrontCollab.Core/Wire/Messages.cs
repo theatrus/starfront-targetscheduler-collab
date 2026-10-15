@@ -7,13 +7,14 @@ namespace StarfrontCollab.Wire;
 public sealed record RigProfile(
     string Name, double? FocalLength, double? PixelSize, int? SensorWidth, int? SensorHeight, int Binning, bool Colour,
     double? Rotation, double? HoursPerNight, IReadOnlyList<(string Name, double? Bandpass)> Filters,
-    IReadOnlyDictionary<string, double> Exposures)
+    IReadOnlyDictionary<string, double> Exposures, int? Bortle = null)
 {
     /// Arcseconds per binned pixel.
     public double? Scale => FocalLength is > 0 && PixelSize is > 0 ? 206.265 * PixelSize.Value * Math.Max(1, Binning) / FocalLength.Value : null;
 
     public JsonObject ToJson()
     {
+        if (Bortle is < 1 or > 9) throw new WireException("Bortle class must be 1 to 9, or unknown.");
         var filters = new JsonObject();
         foreach (var (name, bandpass) in Filters) filters[name] = bandpass;
         var exposures = new JsonObject();
@@ -32,6 +33,7 @@ public sealed record RigProfile(
             ["hoursPerNight"] = HoursPerNight,
             ["filters"] = filters,
             ["exposures"] = exposures,
+            ["bortle"] = Bortle,
         };
     }
 }
@@ -62,10 +64,11 @@ public sealed record Presence(double? RaHours, double? Dec, string State, bool S
 public sealed record Contribution(
     string Project, string Task, string Night, string Filter, string Panel, int Frames, double Seconds, double Exposure,
     Region Footprint, double? Scale, double? FocalLength, double? Hfr, double? GuideRms,
-    double? MoonIllumination, double? MoonSeparation, double? Bandpass, bool Colour, IReadOnlyList<string>? Channels = null)
+    double? MoonIllumination, double? MoonSeparation, double? Bandpass, bool Colour, IReadOnlyList<string>? Channels = null, int? Bortle = null)
 {
     public JsonObject ToJson()
     {
+        if (Bortle is < 1 or > 9) throw new WireException("Bortle class must be 1 to 9, or unknown.");
         if (Channels is { Count: > 0 } && Channels.Any(band => band.StartsWith("OSC-", StringComparison.Ordinal) != Colour))
             throw new WireException("The saved data bands do not match the camera type; reports are held for review.");
         var body = new JsonObject
@@ -95,6 +98,7 @@ public sealed record Contribution(
             ["calibrated"] = false,
             ["bandpass"] = Bandpass,
             ["colour"] = Colour,
+            ["bortle"] = Bortle,
         };
         if (Channels is { Count: > 0 }) body["channels"] = new JsonArray([.. Channels.Select(band => (JsonNode?)JsonValue.Create(band))]);
         return body;

@@ -93,6 +93,30 @@ Each check-in also:
 Review the changes under **Activity**, then click **Apply**. Turn on
 **Apply automatically** to skip the review.
 
+### Fetch from the Advanced Sequencer
+
+Add **Starfront TargetScheduler Collab → Fetch tonight** after **Connect
+Equipment** and before the **Target Scheduler** container. Connect the
+rotator before this step so the server knows it can assign any camera angle.
+
+The instruction sends the current equipment profile, fetches tonight's
+assignments and applies them to the configured Target Scheduler database.
+It waits for the database transaction to commit before the next instruction
+runs, even when **Apply automatically** is off. Target Scheduler reads the
+database when it starts planning; it does not need to be restarted or opened
+again. Use the same N.I.N.A. profile and database for both plugins.
+
+Sign in and select **Hello** or **Collab** mode first. Hello mode lets the
+sequence control when assignments are pulled; it still shares presence but
+does not run background pulls or frame reports. Collab mode continues its
+normal background pulls and reports. The sequence instruction does not
+change the mode or the **Apply automatically** preference.
+
+The instruction defaults to **Abort on error**. A failed check-in, unreadable
+assignment or failed database Apply fails the step instead of continuing
+with stale plans. Cancellation cancels pending network work. An empty deal
+or a held share follows the usual mapping rules and is shown under Activity.
+
 ### Once per night
 
 The server deals a telescope's panels once per night and keeps that deal

@@ -24,6 +24,12 @@ database. The collaboration fixtures are the AstroCollab spec's examples and a
 reply captured from a live Starfront server. See
 [the fixture notes](../tests/StarfrontCollab.Tests/Fixtures/README.md).
 
+`StarfrontCollab.Plugin.Tests` also exercises the Advanced Sequencer instruction
+and controller with mocked equipment and HTTP replies. It redirects N.I.N.A.'s
+data directory before its logger starts and uses throwaway Target Scheduler
+databases. These tests cover Apply with background auto-apply disabled,
+equipment profile submission, request serialization, cancellation and failures.
+
 ## Interop check
 
 `tools/InteropCheck` runs the core library against a collaboration server on

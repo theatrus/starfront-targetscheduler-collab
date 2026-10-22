@@ -26,6 +26,8 @@ internal sealed class CollabController : INotifyPropertyChanged
 
     private readonly NinaRig rig;
     private readonly CollabSettings settings;
+    private readonly Func<Uri, CollabClient> createClient;
+    private readonly Func<Uri, Guid, Credential?> readCredential;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly SemaphoreSlim wake = new(0, 1);
     private readonly Command signIn, cancelSignIn, saveToken, forget, sendHello, poll, apply;
@@ -50,10 +52,13 @@ internal sealed class CollabController : INotifyPropertyChanged
     private IReadOnlyList<ShareRow> shares = [];
     private IReadOnlyList<ProjectRow> projects = [];
 
-    internal CollabController(NinaRig rig, CollabSettings settings)
+    internal CollabController(NinaRig rig, CollabSettings settings,
+        Func<Uri, CollabClient>? createClient = null, Func<Uri, Guid, Credential?>? readCredential = null)
     {
         this.rig = rig;
         this.settings = settings;
+        this.createClient = createClient ?? (server => new CollabClient(server));
+        this.readCredential = readCredential ?? ((server, profile) => CredentialStore.Read(server, profile) ?? MoveFromFormerAddress(server));
         signIn = new(SignInAsync, () => signingIn is null, Report);
         cancelSignIn = new(() => { signingIn?.Cancel(); return Task.CompletedTask; }, () => signingIn is not null, Report);
         saveToken = new(SaveTokenAsync, () => signingIn is null && AgentTokenInput.Trim().Length > 0, Report);
@@ -266,13 +271,17 @@ internal sealed class CollabController : INotifyPropertyChanged
             try { await loop; }
             catch (OperationCanceledException) { }
         }
+        // A sequence fetch shares the lock but is not part of the background
+        // loop. Let its cancellation/transaction finish before disposing the rig.
+        await gate.WaitAsync();
+        gate.Release();
         loop = null;
         pending = null;
         if (!sayGoodbye || Mode == CollabSettings.Off || rejected || Account() is not { } account || Server() is not { } server) return;
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            using var client = new CollabClient(server);
+            using var client = createClient(server);
             await client.HelloAsync(account.Token, rig.ReadProfile(settings, NoExposures),
                 new Presence(null, null, CheckIn.Offline, false, null, null, rig.TelescopeName(settings)), deadline.Token);
         }
@@ -318,7 +327,7 @@ internal sealed class CollabController : INotifyPropertyChanged
 
     // ----------------------------------------------------------------- hello
 
-    private async Task<bool> HelloAsync(bool collab, CancellationToken token)
+    private async Task<bool> HelloAsync(bool collab, CancellationToken token, bool throwOnFailure = false)
     {
         if (Account() is not { } account || Server() is not { } server) return false;
         var now = DateTimeOffset.UtcNow;
@@ -326,7 +335,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         {
             var profile = rig.ReadProfile(settings, collab ? exposures : NoExposures);
             var presence = rig.ReadPresence(settings, targetProjects);
-            using var client = new CollabClient(server);
+            using var client = createClient(server);
             var reply = await client.HelloAsync(account.Token, profile, presence, token);
             if (reply.AgentId != account.AgentId) Remember(server, account with { AgentId = reply.AgentId });
             helloFailures = 0;
@@ -338,11 +347,17 @@ internal sealed class CollabController : INotifyPropertyChanged
             AccountStatus = $"Connected to {server.Host} as telescope {reply.AgentId}.";
             return true;
         }
-        catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized) { Reject(); return false; }
+        catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized)
+        {
+            Reject();
+            if (throwOnFailure) throw;
+            return false;
+        }
         catch (CollabException error)
         {
             nextHello = now + CheckIn.RetryWait(++helloFailures, Interval);
             HelloStatus = $"{Clock(now)}: {error.Message} Trying again at {Clock(nextHello)}.";
+            if (throwOnFailure) throw;
             return false;
         }
     }
@@ -357,15 +372,48 @@ internal sealed class CollabController : INotifyPropertyChanged
 
     // ----------------------------------------------------------------- collab
 
-    private async Task PollAsync(CancellationToken token)
+    internal IReadOnlyList<string> FetchIssues
     {
-        if (Account() is not { } account || Server() is not { } server) return;
+        get
+        {
+            var issues = new List<string>();
+            if (running is null || running.IsCancellationRequested) issues.Add("Starfront TargetScheduler Collab is not running.");
+            if (Mode == CollabSettings.Off) issues.Add("Set Starfront TargetScheduler Collab to Hello or Collab mode.");
+            if (Server() is null) issues.Add(AccountStatus);
+            else if (rejected || Account() is null) issues.Add("Sign in under Plugins > Starfront TargetScheduler Collab.");
+            if (!File.Exists(settings.DatabasePath)) issues.Add("Open Target Scheduler once and select its database in the Starfront plugin settings.");
+            return issues;
+        }
+    }
+
+    internal async Task FetchTonightAsync(CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, running?.Token ?? CancellationToken.None);
+        await Exclusive(async cancellation =>
+        {
+            var issues = FetchIssues;
+            if (issues.Count > 0) throw new InvalidOperationException(string.Join(" ", issues));
+            await PollAsync(cancellation, fromSequence: true);
+        }, linked.Token);
+    }
+
+    private Task PollAsync(CancellationToken token) => PollAsync(token, fromSequence: false);
+
+    private async Task PollAsync(CancellationToken token, bool fromSequence)
+    {
+        if (Account() is not { } account || Server() is not { } server)
+        {
+            if (fromSequence) throw new InvalidOperationException("Sign in to the collaboration server before fetching tonight's assignments.");
+            return;
+        }
         var now = DateTimeOffset.UtcNow;
         try
         {
             exposures = Exposures();
-            if (!await HelloAsync(collab: true, token))
+            if (!await HelloAsync(collab: true, token, throwOnFailure: fromSequence))
             {
+                if (fromSequence) throw new InvalidOperationException("Could not send the current equipment profile to the collaboration server.");
                 if (!rejected) nextPoll = now + CheckIn.RetryWait(++pollFailures, Interval);
                 return;
             }
@@ -374,7 +422,7 @@ internal sealed class CollabController : INotifyPropertyChanged
             var night = await Task.Run(() => NightSky.For(now, site.Latitude, site.Longitude), token);
             Tonight tonight;
             IReadOnlyList<OpenProject>? open = null;
-            using (var client = new CollabClient(server))
+            using (var client = createClient(server))
             {
                 using (var reply = await client.TonightAsync(account.Token, night, token))
                     tonight = TonightReader.Read(reply.RootElement, account.AgentId, night.Name);
@@ -388,23 +436,30 @@ internal sealed class CollabController : INotifyPropertyChanged
             var store = new TsStore(settings.DatabasePath);
             var request = new ActivationRequest(server.AbsoluteUri, account.AgentId, ProfileId.ToString("D"), tonight, rig.WheelFilters(), settings.Binning, now,
                 settings.Bortle > 0 ? settings.Bortle : null);
-            var commit = settings.AutoApply;
+            // An explicit sequence instruction must finish Apply before TS starts,
+            // regardless of the options page's background review preference.
+            var commit = fromSequence || settings.AutoApply;
             var result = await Task.Run(() => store.Activate(request, commit), token);
             pending = !commit && result.Changes.Count > 0 ? request : null;
             apply.Refresh();
             ShowActivation(result, night, now);
             targetProjects = await Task.Run(() => store.TargetProjects(server.AbsoluteUri, account.AgentId), token);
 
-            await ReportAsync(store, server, account, now, token);
+            if (!fromSequence) await ReportAsync(store, server, account, now, token);
             pollFailures = 0;
             nextPoll = now + Interval;
         }
-        catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized) { Reject(); }
+        catch (CollabException error) when (error.Failure == CollabFailure.Unauthorized)
+        {
+            Reject();
+            if (fromSequence) throw;
+        }
         catch (Exception error) when (error is CollabException or WireException or TsException or SQLiteException or IOException
             or UnauthorizedAccessException)
         {
             nextPoll = now + CheckIn.RetryWait(++pollFailures, Interval);
             CollabStatus = $"{Clock(now)}: {error.Message} Trying again at {Clock(nextPoll)}.";
+            if (fromSequence) throw;
         }
     }
 
@@ -666,7 +721,7 @@ internal sealed class CollabController : INotifyPropertyChanged
         if (Server() is not { } server) return null;
         if (credential is { } cached && cached.Server == server && cached.Profile == ProfileId) return cached.Value;
         Credential? value = null;
-        try { value = CredentialStore.Read(server, ProfileId) ?? MoveFromFormerAddress(server); }
+        try { value = readCredential(server, ProfileId); }
         catch (Exception error) when (error is InvalidOperationException or Win32Exception) { AccountStatus = error.Message; }
         credential = (server, ProfileId, value);
         return value;

@@ -34,11 +34,13 @@ public sealed class CollabPlugin : PluginBase
         await base.Initialize();
         profiles.ProfileChanged += ProfileChanged;
         controller.Start();
+        AssignmentFetcher.Controller = controller;
     }
 
     public override async Task Teardown()
     {
         profiles.ProfileChanged -= ProfileChanged;
+        if (ReferenceEquals(AssignmentFetcher.Controller, controller)) AssignmentFetcher.Controller = null;
         try { await controller.StopAsync(sayGoodbye: true); }
         catch (Exception error) { Logger.Error(error); }
         rig.Dispose();
